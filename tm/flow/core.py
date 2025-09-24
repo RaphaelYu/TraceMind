@@ -16,6 +16,7 @@ Quick usage:
   # 3) Run StaticAnalyzer().check(flow) first to catch basic issues
   # 4) Engine(tracer=AirflowStyleTracer()).run(flow, inputs={...})
 """
+# TODO add some unit-tests for all class and methods in this file
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -389,8 +390,8 @@ class TimeoutPolicy:
 
 @dataclass
 class StepPolicies:
-    retry: RetryPolicy = RetryPolicy()
-    timeout: TimeoutPolicy = TimeoutPolicy()
+    retry: RetryPolicy = field(default_factory=RetryPolicy)
+    timeout: TimeoutPolicy = field(default_factory=TimeoutPolicy)
 
 def _parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
     r = cfg.get("retry", {})
