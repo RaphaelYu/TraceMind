@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional
 import networkx as nx
-
 class NodeKind(Enum):
     TASK = auto()
     FINISH = auto()
