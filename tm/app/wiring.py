@@ -13,7 +13,9 @@ from tm.pipeline.selectors import match as sel_match
 PLUGINS = load_plugins()
 
 # Merge plans from all plugins (simple concatenation)
-from tm.pipeline.engine import Plan, StepSpec, Rule
+from tm.pipeline.engine import Plan
+
+
 def _merge_plans(plans: List[Plan]) -> Plan:
     steps = {}
     rules = []
@@ -22,14 +24,13 @@ def _merge_plans(plans: List[Plan]) -> Plan:
         rules.extend(p.rules)
     return Plan(steps=steps, rules=rules)
 
-_plans = [p.build_plan() for p in PLUGINS if getattr(p, "build_plan", None)]
-_plans = [p for p in _plans if p]
+_plans = [plugin.build_plan() for plugin in PLUGINS]
+_plans = [plan for plan in _plans if plan]
 PLAN = _merge_plans(_plans) if _plans else Plan(steps={}, rules=[])
 
 # subscribe plugin bus hooks
-for p in PLUGINS:
-    if getattr(p, "register_bus", None):
-        p.register_bus(bus, svc)
+for plugin in PLUGINS:
+    plugin.register_bus(bus, svc)
 
 # --- Pipeline wiring (generic; io layer stays clean) ---
 import time
@@ -71,3 +72,7 @@ def _on_event(ev: object):
     _last[key] = out.get("new", new)
 
 bus.subscribe(_on_event)
+
+from tm.app.wiring_flows import router as flow_router
+
+app.include_router(flow_router)

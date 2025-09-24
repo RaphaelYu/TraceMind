@@ -1,6 +1,8 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
+
+from .operations import ResponseMode
 
 @dataclass
 class RetryPolicy:
@@ -16,8 +18,17 @@ class TimeoutPolicy:
 @dataclass
 class StepPolicies:
     """Bundle of policies applied to a step."""
-    retry: RetryPolicy = RetryPolicy()
-    timeout: TimeoutPolicy = TimeoutPolicy()
+    retry: RetryPolicy = field(default_factory=RetryPolicy)
+    timeout: TimeoutPolicy = field(default_factory=TimeoutPolicy)
+
+
+@dataclass
+class FlowPolicies:
+    """Top-level runtime policies that influence flow execution."""
+
+    response_mode: ResponseMode = ResponseMode.IMMEDIATE
+    max_concurrency: Optional[int] = None
+    allow_deferred: bool = True
 
 def parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
     """

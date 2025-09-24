@@ -1,6 +1,7 @@
 from __future__ import annotations
 import importlib, os
-from typing import List, Optional
+from typing import List
+
 from .base import Plugin
 
 def _split_csv(env: str) -> List[str]:
@@ -21,7 +22,9 @@ def load_plugins() -> List[Plugin]:
         mod_name, _, obj_name = spec.partition(":")
         mod = importlib.import_module(mod_name)
         obj = getattr(mod, obj_name or "plugin")
-        plugs.append(obj)  # obj must satisfy Plugin protocol
+        if not isinstance(obj, Plugin):  # runtime Protocol check
+            raise TypeError(f"Loaded object {spec!r} does not implement Plugin protocol")
+        plugs.append(obj)
 
     # optional path-based discovery (dev convenience)
     extra_path = os.getenv("TRACE_PLUGINS_PATH")

@@ -22,7 +22,7 @@ Agent Evolution Timeline
 
 ## ✨ Features
 
-* **Event Sourcing Core**: append-only event store (SQLite / JSONL).
+* **Event Sourcing Core**: append-only event store powered by the Binary Segment Log (`tm/storage/binlog.py`). JSONL and SQLite remain optional adapters planned for future expansion.
 * **DDD Structure**: clear separation of domain, application, and infrastructure layers.
 * **Pipeline Engine**: field-driven processing (Plan → Rule → Step), statically analyzable.
 * **Tracing & Reflection**: every step produces auditable spans.
