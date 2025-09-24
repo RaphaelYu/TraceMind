@@ -53,8 +53,27 @@ class FlowRuntime:
         if mode is ResponseMode.DEFERRED:
             if not self._policies.allow_deferred:
                 raise RuntimeError("Deferred execution is disabled by policy")
-            token = self._correlator.reserve(spec.name, inputs)
-            return {"status": "deferred", "token": token, "flow": spec.name}
+            payload = dict(inputs or {})
+            token = self._correlator.reserve(spec.name, payload)
+            req_id = payload.get("req_id")
+            ready: Optional[Dict[str, Any]] = None
+            if isinstance(req_id, str):
+                ready = self._correlator.consume_signal(req_id)
+                wait_s = max(float(getattr(self._policies, "short_wait_s", 0.0)), 0.0)
+                if ready is None and wait_s > 0:
+                    deadline = time.time() + wait_s
+                    while ready is None and time.time() < deadline:
+                        time.sleep(min(0.005, deadline - time.time()))
+                        ready = self._correlator.consume_signal(req_id)
+            if ready is not None:
+                self._correlator.consume(token)
+                return {
+                    "status": "ready",
+                    "token": token,
+                    "flow": spec.name,
+                    "result": ready,
+                }
+            return {"status": "pending", "token": token, "flow": spec.name}
 
         result = self._execute_immediately(spec, inputs)
         return {"status": "immediate", "flow": spec.name, "result": result}

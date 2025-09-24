@@ -72,7 +72,7 @@ def test_run_deferred_requires_policy_opt_in():
 
     response = deferred_runtime.run("async", inputs=payload)
 
-    assert response["status"] == "deferred"
+    assert response["status"] == "pending"
     assert response["token"]
     assert response["flow"] == "async"
 
@@ -83,4 +83,3 @@ def test_run_deferred_requires_policy_opt_in():
 
     with pytest.raises(RuntimeError):
         strict_runtime.run("async")
-

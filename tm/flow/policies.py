@@ -29,6 +29,7 @@ class FlowPolicies:
     response_mode: ResponseMode = ResponseMode.IMMEDIATE
     max_concurrency: Optional[int] = None
     allow_deferred: bool = True
+    short_wait_s: float = 0.0
 
 def parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
     """
