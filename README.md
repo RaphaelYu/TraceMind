@@ -36,6 +36,18 @@ Agent Evolution Timeline
 
   * Static: export DOT/JSON diagrams of flows.
   * Dynamic: SSE dashboard with live DAG and insights panel.
+* **Protocols**:
+
+  * MCP (Model Context Protocol) integration (JSON-RPC 2.0) – see the
+    [latest specification](https://modelcontextprotocol.io/specification/latest)
+    and the [community GitHub org](https://github.com/modelcontextprotocol).
+    Example flow recipe:
+    ```python
+    from tm.recipes.mcp_flows import mcp_tool_call
+
+    spec = mcp_tool_call("files", "list", ["path"])
+    runtime.register(_SpecFlow(spec))
+    ```
 * **Interfaces**:
 
   * REST API: `/api/commands/*`, `/api/query/*`, `/agent/chat`.

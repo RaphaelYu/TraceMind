@@ -57,6 +57,7 @@ venv/
 *.crt
 *.key
 *.tmbl
+data/
 
 # Django stuff:
 *.log
