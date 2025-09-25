@@ -74,5 +74,7 @@ def _on_event(ev: object):
 bus.subscribe(_on_event)
 
 from tm.app.wiring_flows import router as flow_router
+from tm.app.wiring_service import router as service_router
 
 app.include_router(flow_router)
+app.include_router(service_router)
