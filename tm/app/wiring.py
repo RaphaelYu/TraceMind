@@ -75,6 +75,7 @@ bus.subscribe(_on_event)
 
 from tm.app.wiring_flows import router as flow_router
 from tm.app.wiring_service import router as service_router
+from tm.app.wiring_ai import router as ai_router
 from tm.obs.counters import metrics
 from tm.obs.exporters.prometheus import mount_prometheus
 from tm.obs.exporters.file_exporter import maybe_enable_from_env as maybe_enable_file_exporter
@@ -83,6 +84,7 @@ from tm.obs.exporters import get_exporter_factory
 
 app.include_router(flow_router)
 app.include_router(service_router)
+app.include_router(ai_router)
 
 exporters_env = os.getenv("TRACE_EXPORTERS")
 requested = {item.strip() for item in exporters_env.split(",") if item.strip()} if exporters_env else {"prometheus", "file", "binlog"}
