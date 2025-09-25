@@ -14,6 +14,7 @@ except ModuleNotFoundError:  # pragma: no cover
         DEFERRED = "deferred"
 
 from tm.ai.hooks import DecisionHook, NullDecisionHook
+from tm.obs.recorder import Recorder
 from .binding import BindingSpec, Operation, _coerce_operation
 
 
@@ -55,6 +56,7 @@ class OperationRouter:
             raise KeyError(f"No bindings registered for model '{model}'")
 
         op_enum = _coerce_operation(operation)
+        Recorder.default().on_service_request(model, op_enum.value)
         ctx: Dict[str, object] = {"model": model, "op": op_enum, "payload": payload}
         if context:
             ctx.update(context)

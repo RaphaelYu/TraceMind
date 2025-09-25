@@ -1,7 +1,9 @@
 # tm/cli.py
 import argparse, sys
+from datetime import datetime, timedelta, timezone
 from tm.app.demo_plan import build_plan
 from tm.pipeline.analysis import analyze_plan
+from tm.obs.retrospect import load_window
 
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
@@ -56,6 +58,38 @@ if __name__ == "__main__":
     sp_dot.add_argument("--out-rules-steps", required=True, help="output .dot for rule->steps")
     sp_dot.add_argument("--out-step-deps", required=True, help="output .dot for step dependency graph")
     sp_dot.set_defaults(func=_cmd_pipeline_export_dot)
+
+    def _parse_duration(expr: str) -> timedelta:
+        units = {"s": 1, "m": 60, "h": 3600}
+        try:
+            factor = units[expr[-1]]
+            value = float(expr[:-1])
+            return timedelta(seconds=value * factor)
+        except Exception as exc:
+            raise ValueError(f"Invalid duration '{expr}'") from exc
+
+    def _cmd_metrics_dump(args):
+        window = _parse_duration(args.window)
+        until = datetime.now(timezone.utc)
+        since = until - window
+        entries = load_window(args.dir, since, until)
+        if args.format == "csv":
+            print("type,name,labels,value")
+            for entry in entries:
+                label_str = ";".join(f"{k}={v}" for k, v in sorted(entry["labels"].items()))
+                print(f"{entry['type']},{entry['name']},{label_str},{entry['value']}")
+        else:
+            import json
+
+            print(json.dumps(entries, indent=2))
+
+    sp_metrics = sub.add_parser("metrics", help="metrics tools")
+    spm_sub = sp_metrics.add_subparsers(dest="mcmd")
+    spm_dump = spm_sub.add_parser("dump", help="dump metrics window")
+    spm_dump.add_argument("--dir", required=True, help="binlog directory")
+    spm_dump.add_argument("--window", default="5m", help="window size (e.g. 5m, 1h)")
+    spm_dump.add_argument("--format", choices=["csv", "json"], default="csv")
+    spm_dump.set_defaults(func=_cmd_metrics_dump)
 
     args = parser.parse_args()
     if hasattr(args, "func"):

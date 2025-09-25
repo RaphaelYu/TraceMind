@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional, Set
 
 from .correlate import CorrelationHub
 from .flow import Flow
@@ -9,6 +9,7 @@ from .operations import Operation, ResponseMode
 from .policies import FlowPolicies
 from .spec import FlowSpec, StepDef
 from .trace_store import FlowTraceSink, TraceSpanLike
+from tm.obs.recorder import Recorder
 
 
 class FlowRuntime:
@@ -26,6 +27,8 @@ class FlowRuntime:
         self._policies = policies or FlowPolicies()
         self._correlator = correlator or CorrelationHub()
         self._trace_sink = trace_sink
+        self._recorder = Recorder.default()
+        self._pending_tokens: Set[str] = set()
 
     def register(self, flow: Flow) -> None:
         self._flows[flow.name] = flow
@@ -49,6 +52,11 @@ class FlowRuntime:
         flow = self.choose_flow(name)
         spec = self.build_dag(flow)
         mode = response_mode or self._policies.response_mode
+        model_name = None
+        if isinstance(inputs, dict):
+            maybe = inputs.get("model")
+            if isinstance(maybe, str):
+                model_name = maybe
 
         if mode is ResponseMode.DEFERRED:
             if not self._policies.allow_deferred:
@@ -57,6 +65,8 @@ class FlowRuntime:
             token = self._correlator.reserve(spec.name, payload)
             req_id = payload.get("req_id")
             ready: Optional[Dict[str, Any]] = None
+            self._recorder.on_flow_started(spec.name, model_name)
+            pending_key = req_id if isinstance(req_id, str) else token
             if isinstance(req_id, str):
                 ready = self._correlator.consume_signal(req_id)
                 wait_s = max(float(getattr(self._policies, "short_wait_s", 0.0)), 0.0)
@@ -67,15 +77,24 @@ class FlowRuntime:
                         ready = self._correlator.consume_signal(req_id)
             if ready is not None:
                 self._correlator.consume(token)
+                if pending_key and pending_key in self._pending_tokens:
+                    self._pending_tokens.discard(pending_key)
+                    self._recorder.on_flow_pending(-1)
+                self._recorder.on_flow_finished(spec.name, model_name, "ok")
                 return {
                     "status": "ready",
                     "token": token,
                     "flow": spec.name,
                     "result": ready,
                 }
+            if pending_key:
+                self._pending_tokens.add(pending_key)
+                self._recorder.on_flow_pending(+1)
             return {"status": "pending", "token": token, "flow": spec.name}
 
+        self._recorder.on_flow_started(spec.name, model_name)
         result = self._execute_immediately(spec, inputs)
+        self._recorder.on_flow_finished(spec.name, model_name, "ok")
         return {"status": "immediate", "flow": spec.name, "result": result}
 
     def _execute_immediately(

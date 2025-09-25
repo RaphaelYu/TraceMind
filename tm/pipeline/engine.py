@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Any, Tuple
 import json, time
+from tm.obs.recorder import Recorder
 
 Path = Tuple[Any, ...]
 
@@ -67,6 +68,7 @@ class Pipeline:
                     inputs=before, outputs=ctx,
                     reads=spec.reads, writes=spec.writes, error=err
                 ))
+                Recorder.default().on_pipeline_step(rule.name, spec.name, "error" if err else "ok")
                 if err:
                     break  # stop current rule on error
         return ctx
