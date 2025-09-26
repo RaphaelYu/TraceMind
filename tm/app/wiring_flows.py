@@ -58,7 +58,7 @@ _runtime = FlowRuntime(
 
 
 @router.post("/run")
-def run_flow(payload: Dict[str, object]) -> Dict[str, object]:
+async def run_flow(payload: Dict[str, object]) -> Dict[str, object]:
     body = payload.get("payload")
     if body is not None and not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="payload must be an object")
@@ -76,13 +76,22 @@ def run_flow(payload: Dict[str, object]) -> Dict[str, object]:
         requested_flow = f"sample.{op}"
 
     try:
-        result = _runtime.run(requested_flow, inputs=body or {}, response_mode=ResponseMode.DEFERRED)
+        result = await _runtime.run(requested_flow, inputs=body or {}, response_mode=ResponseMode.DEFERRED)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     status = result.get("status")
-    if status == "pending":
-        return {"status": "accepted", "correlationId": result["token"]}
-    if status == "ready":
-        return {"status": "ok", "result": result.get("result")}
-    return {"status": status or "unknown", "result": result.get("result")}
+    output = result.get("output", {})
+
+    if status == "rejected":
+        raise HTTPException(status_code=429, detail=result.get("error_message", "queue full"))
+    if status == "error":
+        raise HTTPException(status_code=500, detail=result.get("error_message", "flow error"))
+
+    if output.get("mode") == "deferred":
+        if output.get("status") == "pending":
+            return {"status": "accepted", "correlationId": output.get("token")}
+        if output.get("status") == "ready":
+            return {"status": "ok", "result": output.get("result")}
+
+    return {"status": "ok", "result": output}

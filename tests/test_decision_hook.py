@@ -1,3 +1,5 @@
+import pytest
+
 from tm.service import BindingRule, BindingSpec, Operation
 from tm.service.router import OperationRouter
 
@@ -6,9 +8,17 @@ class DummyRuntime:
     def __init__(self):
         self.calls = []
 
-    def run(self, name, inputs=None, response_mode=None):  # noqa: ANN001
+    async def run(self, name, inputs=None, response_mode=None):  # noqa: ANN001
         self.calls.append((name, inputs, response_mode))
-        return {"status": "immediate", "result": {"ok": True}}
+        return {
+            "status": "ok",
+            "run_id": "test",
+            "queued_ms": 0.0,
+            "exec_ms": 0.0,
+            "output": {"mode": "immediate", "steps": [], "state": {}},
+            "error_code": None,
+            "error_message": None,
+        }
 
 
 class RecordingHook:
@@ -24,7 +34,8 @@ class RecordingHook:
         self.after_result = dict(result)
 
 
-def test_decision_hook_can_override_binding():
+@pytest.mark.asyncio
+async def test_decision_hook_can_override_binding():
     binding = BindingSpec(
         model="Generic",
         rules=[
@@ -42,9 +53,11 @@ def test_decision_hook_can_override_binding():
     router = OperationRouter(runtime, {"Generic": binding}, hook=hook)
 
     payload = {"data": {"id": "123"}}
-    result = router.dispatch(model="Generic", operation=Operation.READ, payload=payload, context={})
+    result = await router.dispatch(model="Generic", operation=Operation.READ, payload=payload, context={})
 
     assert runtime.calls[0][0] == "flow-special"
     assert hook.before_ctx["selected"] == "special"
     assert result["flow"] == "flow-special"
     assert hook.after_result["flow"] == "flow-special"
+
+    await runtime.aclose()

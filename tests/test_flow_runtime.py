@@ -38,29 +38,38 @@ def _build_flow_spec(name: str, *, key: str | None = None) -> FlowSpec:
     return spec
 
 
-def test_run_immediate_follows_switch_default_path():
+@pytest.mark.asyncio
+async def test_run_immediate_follows_switch_default_path():
     spec = _build_flow_spec("demo", key=None)
     flow = DummyFlow(spec)
     runtime = FlowRuntime({spec.name: flow})
 
-    result = runtime.run("demo")
+    result = await runtime.run("demo")
 
-    assert result["status"] == "immediate"
+    assert result["status"] == "ok"
+    assert result["output"]["mode"] == "immediate"
+    assert [step["name"] for step in result["output"]["steps"]] == ["start", "router", "left", "finish"]
     assert result["flow"] == "demo"
-    assert result["result"]["steps"] == ["start", "router", "left", "finish"]
+    assert result["flow_id"] == "demo"
+    assert result["flow_rev"].startswith("rev-")
 
+    await runtime.aclose()
 
-def test_run_immediate_respects_switch_key_selection():
+@pytest.mark.asyncio
+async def test_run_immediate_respects_switch_key_selection():
     spec = _build_flow_spec("branch", key="right")
     flow = DummyFlow(spec)
     runtime = FlowRuntime({spec.name: flow})
 
-    result = runtime.run("branch")
+    result = await runtime.run("branch")
 
-    assert result["result"]["steps"] == ["start", "router", "right", "finish"]
+    assert [step["name"] for step in result["output"]["steps"]] == ["start", "router", "right", "finish"]
+    assert result["flow_id"] == "branch"
 
+    await runtime.aclose()
 
-def test_run_deferred_requires_policy_opt_in():
+@pytest.mark.asyncio
+async def test_run_deferred_requires_policy_opt_in():
     spec = FlowSpec(name="async")
     flow = DummyFlow(spec)
 
@@ -70,16 +79,19 @@ def test_run_deferred_requires_policy_opt_in():
     )
     payload = {"payload": 1}
 
-    response = deferred_runtime.run("async", inputs=payload)
+    response = await deferred_runtime.run("async", inputs=payload)
 
-    assert response["status"] == "pending"
-    assert response["token"]
-    assert response["flow"] == "async"
+    assert response["status"] == "ok"
+    assert response["output"]["status"] == "pending"
+    assert response["output"]["token"]
 
     strict_runtime = FlowRuntime(
         {spec.name: flow},
         policies=FlowPolicies(response_mode=ResponseMode.DEFERRED, allow_deferred=False),
     )
 
-    with pytest.raises(RuntimeError):
-        strict_runtime.run("async")
+    result = await strict_runtime.run("async")
+    assert result["status"] == "error"
+
+    await deferred_runtime.aclose()
+    await strict_runtime.aclose()

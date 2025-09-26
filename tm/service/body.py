@@ -56,7 +56,7 @@ class ServiceBody:
 
         return self.model.make_entity(guess_id, body, meta=meta, partial=partial)
 
-    def handle(
+    async def handle(
         self,
         operation: Operation | str,
         payload: MutableMapping[str, Any],
@@ -76,7 +76,7 @@ class ServiceBody:
         if entity.meta is not None:
             dispatch_payload["meta"] = entity.meta
 
-        result = self.router.dispatch(  # type: ignore[union-attr]
+        result = await self.router.dispatch(  # type: ignore[union-attr]
             model=self.model.name,
             operation=op_enum,
             payload=dispatch_payload,

@@ -1,3 +1,5 @@
+import pytest
+
 from tm.flow.correlate import CorrelationHub
 from tm.flow.operations import ResponseMode
 from tm.flow.policies import FlowPolicies
@@ -17,7 +19,8 @@ class _FlowWrapper:
         return self._spec
 
 
-def test_pod_health_flow_pending_then_ready():
+@pytest.mark.asyncio
+async def test_pod_health_flow_pending_then_ready():
     spec = pod_health_check(namespace="default", label_selector="app=demo")
     hub = CorrelationHub()
     runtime = FlowRuntime(
@@ -27,15 +30,16 @@ def test_pod_health_flow_pending_then_ready():
     )
 
     body = {"req_id": "REQ-1", "flow": spec.name}
-    pending = runtime.run(spec.name, inputs=body, response_mode=ResponseMode.DEFERRED)
+    pending = await runtime.run(spec.name, inputs=body, response_mode=ResponseMode.DEFERRED)
 
-    assert pending["status"] == "pending"
-    assert pending["token"]
+    assert pending["status"] == "ok"
+    assert pending["output"]["status"] == "pending"
+    assert pending["output"]["token"]
 
     hub.signal("REQ-1", {"status": "ready", "data": {"pods": []}})
 
-    ready = runtime.run(spec.name, inputs=body, response_mode=ResponseMode.DEFERRED)
+    ready = await runtime.run(spec.name, inputs=body, response_mode=ResponseMode.DEFERRED)
 
-    assert ready["status"] == "ready"
-    assert ready["result"] == {"status": "ready", "data": {"pods": []}}
-
+    assert ready["status"] == "ok"
+    assert ready["output"]["status"] == "ready"
+    assert ready["output"]["result"] == {"status": "ready", "data": {"pods": []}}

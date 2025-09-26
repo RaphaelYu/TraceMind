@@ -61,8 +61,8 @@ def test_flow_runtime_lookup_and_registration():
     with pytest.raises(KeyError):
         runtime.choose_flow("missing")
 
-
-def test_deferred_flow_records_signal_payload():
+@pytest.mark.asyncio
+async def test_deferred_flow_records_signal_payload():
     hub = RecordingHub()
     spec = _deferred_spec("async", hub)
     flow = DummyFlow(spec)
@@ -73,10 +73,10 @@ def test_deferred_flow_records_signal_payload():
     )
 
     request = {"req_id": "REQ-1"}
-    response = runtime.run("async", inputs=request)
+    response = await runtime.run("async", inputs=request)
 
-    assert response["status"] == "pending"
-    token = response["token"]
+    assert response["status"] == "ok"
+    token = response["output"]["token"]
 
     signal_fn = spec.step("notify").config["callable"]
     signal_fn({"req_id": request["req_id"]})
@@ -85,8 +85,10 @@ def test_deferred_flow_records_signal_payload():
     stored = hub.resolve(token)
     assert stored is not None and stored[1]["req_id"] == "REQ-1"
 
+    await runtime.aclose()
 
-def test_deferred_flow_ready_when_signal_precedes_run():
+@pytest.mark.asyncio
+async def test_deferred_flow_ready_when_signal_precedes_run():
     hub = RecordingHub()
     spec = _deferred_spec("async", hub)
     flow = DummyFlow(spec)
@@ -99,7 +101,10 @@ def test_deferred_flow_ready_when_signal_precedes_run():
     request = {"req_id": "REQ-2"}
     spec.step("notify").config["callable"]({"req_id": request["req_id"]})
 
-    response = runtime.run("async", inputs=request)
+    response = await runtime.run("async", inputs=request)
 
-    assert response["status"] == "ready"
-    assert response["result"] == {"status": "ready", "ok": True}
+    assert response["status"] == "ok"
+    assert response["output"]["status"] == "ready"
+    assert response["output"]["result"] == {"status": "ready", "ok": True}
+
+    await runtime.aclose()

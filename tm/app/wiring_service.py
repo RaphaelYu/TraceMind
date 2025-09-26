@@ -63,7 +63,7 @@ _service_body = ServiceBody(
 
 
 @router.post("/run")
-def run_service(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def run_service(payload: Dict[str, Any]) -> Dict[str, Any]:
     model = payload.get("model")
     if model != _model_spec.name:
         raise HTTPException(status_code=404, detail="Unknown model")
@@ -84,15 +84,24 @@ def run_service(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="payload must be an object")
 
     try:
-        result = _service_body.handle(op, body, response_mode=ResponseMode.DEFERRED)
+        result = await _service_body.handle(op, body, response_mode=ResponseMode.DEFERRED)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     status = result.get("status")
-    if status == "pending":
-        return {"status": "accepted", "correlationId": result.get("token"), "flow": result.get("flow")}
-    if status == "ready":
-        return {"status": "ok", "result": result.get("result"), "flow": result.get("flow")}
-    return {"status": status or "unknown", "flow": result.get("flow"), "result": result.get("result")}
+    output = result.get("output", {})
+
+    if status == "rejected":
+        raise HTTPException(status_code=429, detail=result.get("error_message", "queue full"))
+    if status == "error":
+        raise HTTPException(status_code=500, detail=result.get("error_message", "flow error"))
+
+    if output.get("mode") == "deferred":
+        if output.get("status") == "pending":
+            return {"status": "accepted", "correlationId": output.get("token"), "flow": result.get("flow")}
+        if output.get("status") == "ready":
+            return {"status": "ok", "result": output.get("result"), "flow": result.get("flow")}
+
+    return {"status": "ok", "flow": result.get("flow"), "result": output}

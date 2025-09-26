@@ -1,3 +1,5 @@
+import pytest
+
 from tm.service import BindingRule, BindingSpec, Operation, OperationRouter
 
 
@@ -22,13 +24,22 @@ def test_binding_spec_resolves_by_operation_and_predicate():
     assert binding.resolve(Operation.UPDATE, ctx_update_skip) is None
 
 
-def test_operation_router_dispatch_invokes_runtime_with_flow():
+@pytest.mark.asyncio
+async def test_operation_router_dispatch_invokes_runtime_with_flow():
     calls = []
 
     class FakeRuntime:
-        def run(self, name, inputs=None, response_mode=None):  # noqa: ANN001
+        async def run(self, name, inputs=None, response_mode=None):  # noqa: ANN001
             calls.append((name, inputs, response_mode))
-            return {"status": "pending", "token": "t-1"}
+            return {
+                "status": "ok",
+                "run_id": "test",
+                "queued_ms": 0.0,
+                "exec_ms": 0.0,
+                "output": {"mode": "deferred", "status": "pending", "token": "t-1"},
+                "error_code": None,
+                "error_message": None,
+            }
 
     binding = BindingSpec(
         model="Generic",
@@ -38,9 +49,12 @@ def test_operation_router_dispatch_invokes_runtime_with_flow():
     router = OperationRouter(FakeRuntime(), {"Generic": binding})
     payload = {"data": {"id": "123"}}
 
-    result = router.dispatch(model="Generic", operation=Operation.READ, payload=payload, context={"extra": True})
+    result = await router.dispatch(model="Generic", operation=Operation.READ, payload=payload, context={"extra": True})
 
     assert calls[0][0] == "flow-read"
     assert calls[0][1]["data"] == {"id": "123"}
     assert result["flow"] == "flow-read"
-    assert result["status"] == "pending"
+    assert result["status"] == "ok"
+    assert result["output"]["status"] == "pending"
+
+    await runtime.aclose()

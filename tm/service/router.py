@@ -19,7 +19,7 @@ from .binding import BindingSpec, Operation, _coerce_operation
 
 
 class RuntimeLike(Protocol):  # pragma: no cover - structural typing helper
-    def run(
+    async def run(
         self,
         name: str,
         inputs: Optional[Mapping[str, Any]] = None,
@@ -42,7 +42,7 @@ class OperationRouter:
         self._bindings = dict(bindings)
         self._hook = hook or NullDecisionHook()
 
-    def dispatch(
+    async def dispatch(
         self,
         *,
         model: str,
@@ -73,7 +73,7 @@ class OperationRouter:
         if context:
             inputs.setdefault("context", context)
 
-        result = self._runtime.run(flow_name, inputs=inputs, response_mode=response_mode)
+        result = await self._runtime.run(flow_name, inputs=inputs, response_mode=response_mode)
         enriched = {"flow": flow_name, **result}
         self._hook.after_result(enriched)
         return enriched

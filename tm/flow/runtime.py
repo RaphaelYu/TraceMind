@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import time
-from typing import Any, Dict, Mapping, Optional, Set
+import uuid
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Any, Dict, Mapping, Optional, Tuple
+import copy
 
 from .correlate import CorrelationHub
 from .flow import Flow
@@ -12,8 +18,23 @@ from .trace_store import FlowTraceSink, TraceSpanLike
 from tm.obs.recorder import Recorder
 
 
+@dataclass
+class _Request:
+    run_id: str
+    flow_name: str
+    flow_id: str
+    flow_rev: str
+    spec: FlowSpec
+    inputs: Dict[str, Any]
+    response_mode: ResponseMode
+    ctx: Dict[str, Any]
+    model_name: Optional[str]
+    future: asyncio.Future
+    enqueue_ts: float
+
+
 class FlowRuntime:
-    """Minimal runtime that selects flows and mediates execution mode."""
+    """Async-first runtime with bounded concurrency and idempotency support."""
 
     def __init__(
         self,
@@ -22,13 +43,43 @@ class FlowRuntime:
         policies: FlowPolicies | None = None,
         correlator: CorrelationHub | None = None,
         trace_sink: FlowTraceSink | None = None,
+        max_concurrency: int = 8,
+        queue_capacity: int = 1024,
+        queue_wait_timeout_ms: int = 0,
+        idempotency_ttl_sec: float = 30.0,
+        idempotency_cache_size: int = 1024,
     ) -> None:
         self._flows: Dict[str, Flow] = dict(flows or {})
         self._policies = policies or FlowPolicies()
         self._correlator = correlator or CorrelationHub()
         self._trace_sink = trace_sink
         self._recorder = Recorder.default()
-        self._pending_tokens: Set[str] = set()
+
+        self._max_concurrency = max(1, int(max_concurrency))
+        self._queue_capacity = max(0, int(queue_capacity))
+        self._queue_wait_timeout = max(0.0, queue_wait_timeout_ms / 1000.0)
+        self._queue: asyncio.Queue = asyncio.Queue(maxsize=self._queue_capacity)
+
+        self._workers: list[asyncio.Task] = []
+        self._started = False
+        self._active = 0
+
+        self._stats: Dict[str, Any] = {
+            "queue_depth_peak": 0,
+            "queue_depth_current": 0,
+            "active_peak": 0,
+            "rejected": 0,
+            "rejected_reason": {"QUEUE_FULL": 0, "QUEUE_TIMEOUT": 0},
+            "queued_ms": [],
+            "exec_ms": [],
+            "success": 0,
+            "error": 0,
+        }
+
+        self._idempotency_ttl = max(0.0, float(idempotency_ttl_sec))
+        self._idempotency_cache_size = max(0, int(idempotency_cache_size))
+        self._inflight: Dict[str, asyncio.Future] = {}
+        self._cache: "OrderedDict[str, Tuple[float, Dict[str, Any]]]" = OrderedDict()
 
     def register(self, flow: Flow) -> None:
         self._flows[flow.name] = flow
@@ -42,105 +93,293 @@ class FlowRuntime:
     def build_dag(self, flow: Flow) -> FlowSpec:
         return flow.spec()
 
-    def run(
+    async def run(
         self,
         name: str,
         *,
         inputs: Optional[Dict[str, Any]] = None,
         response_mode: Optional[ResponseMode] = None,
+        ctx: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Execute ``name`` and return a structured result envelope."""
+        return await self.execute(name, inputs=inputs, response_mode=response_mode, ctx=ctx)
+
+    async def execute(
+        self,
+        name: str,
+        *,
+        inputs: Optional[Dict[str, Any]] = None,
+        response_mode: Optional[ResponseMode] = None,
+        ctx: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         flow = self.choose_flow(name)
         spec = self.build_dag(flow)
-        mode = response_mode or self._policies.response_mode
+
+        payload = dict(inputs or {})
+        meta = dict(ctx or {})
+
+        run_id = meta.get("run_id") if isinstance(meta.get("run_id"), str) else uuid.uuid4().hex
         model_name = None
-        if isinstance(inputs, dict):
-            maybe = inputs.get("model")
-            if isinstance(maybe, str):
-                model_name = maybe
+        maybe_model = payload.get("model") or meta.get("model")
+        if isinstance(maybe_model, str):
+            model_name = maybe_model
 
-        if mode is ResponseMode.DEFERRED:
-            if not self._policies.allow_deferred:
-                raise RuntimeError("Deferred execution is disabled by policy")
-            payload = dict(inputs or {})
-            token = self._correlator.reserve(spec.name, payload)
-            req_id = payload.get("req_id")
-            ready: Optional[Dict[str, Any]] = None
-            self._recorder.on_flow_started(spec.name, model_name)
-            pending_key = req_id if isinstance(req_id, str) else token
-            if isinstance(req_id, str):
-                ready = self._correlator.consume_signal(req_id)
-                wait_s = max(float(getattr(self._policies, "short_wait_s", 0.0)), 0.0)
-                if ready is None and wait_s > 0:
-                    deadline = time.time() + wait_s
-                    while ready is None and time.time() < deadline:
-                        time.sleep(min(0.005, deadline - time.time()))
-                        ready = self._correlator.consume_signal(req_id)
-            if ready is not None:
-                self._correlator.consume(token)
-                if pending_key and pending_key in self._pending_tokens:
-                    self._pending_tokens.discard(pending_key)
-                    self._recorder.on_flow_pending(-1)
-                self._recorder.on_flow_finished(spec.name, model_name, "ok")
-                return {
-                    "status": "ready",
-                    "token": token,
-                    "flow": spec.name,
-                    "result": ready,
-                }
-            if pending_key:
-                self._pending_tokens.add(pending_key)
-                self._recorder.on_flow_pending(+1)
-            return {"status": "pending", "token": token, "flow": spec.name}
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future = loop.create_future()
 
-        self._recorder.on_flow_started(spec.name, model_name)
-        result = self._execute_immediately(spec, inputs)
-        self._recorder.on_flow_finished(spec.name, model_name, "ok")
-        return {"status": "immediate", "flow": spec.name, "result": result}
+        request = _Request(
+            run_id=run_id,
+            flow_name=name,
+            flow_id=spec.flow_id,
+            flow_rev=spec.flow_revision(),
+            spec=spec,
+            inputs=payload,
+            response_mode=response_mode or self._policies.response_mode,
+            ctx=meta,
+            model_name=model_name,
+            future=future,
+            enqueue_ts=time.perf_counter(),
+        )
 
-    def _execute_immediately(
+        idem_key = meta.get("idempotency_key") if isinstance(meta.get("idempotency_key"), str) else None
+        if idem_key:
+            cached = self._get_cached_result(idem_key)
+            if cached is not None:
+                return self._clone_result(cached)
+
+            inflight = self._inflight.get(idem_key)
+            if inflight is not None:
+                result = await asyncio.shield(inflight)
+                return self._clone_result(result)
+
+            self._inflight[idem_key] = future
+            request.ctx["idempotency_key"] = idem_key
+
+        accepted = await self._enqueue(request)
+        if accepted != "OK":
+            self._stats["rejected"] += 1
+            self._stats["rejected_reason"][accepted] += 1
+            self._recorder.on_flow_finished(spec.name, model_name, "rejected")
+            if idem_key:
+                self._inflight.pop(idem_key, None)
+            return {
+                "status": "rejected",
+                "run_id": run_id,
+                "queued_ms": 0.0,
+                "exec_ms": 0.0,
+                "output": {},
+                "error_code": accepted,
+                "error_message": "request rejected",
+                "flow": spec.name,
+                "flow_name": spec.name,
+                "flow_id": spec.flow_id,
+                "flow_rev": spec.flow_revision(),
+            }
+
+        return await future
+
+    async def _enqueue(self, request: _Request) -> str:
+        await self._ensure_workers()
+        put_started = time.perf_counter()
+        queue_timeout = self._queue_wait_timeout
+        try:
+            if self._queue_capacity == 0:
+                await self._queue.put(request)
+            elif queue_timeout <= 0:
+                self._queue.put_nowait(request)
+            else:
+                await asyncio.wait_for(self._queue.put(request), timeout=queue_timeout)
+        except asyncio.QueueFull:
+            return "QUEUE_FULL"
+        except asyncio.TimeoutError:
+            return "QUEUE_TIMEOUT"
+        else:
+            request.enqueue_ts = put_started
+            self._record_queue_depth()
+            return "OK"
+
+    async def _ensure_workers(self) -> None:
+        if self._started:
+            return
+        loop = asyncio.get_running_loop()
+        for _ in range(self._max_concurrency):
+            self._workers.append(loop.create_task(self._worker()))
+        self._started = True
+
+    async def _worker(self) -> None:
+        while True:
+            request = await self._queue.get()
+            if request is None:
+                self._queue.task_done()
+                self._record_queue_depth()
+                break
+
+            start_ts = time.perf_counter()
+            queued_ms = (start_ts - request.enqueue_ts) * 1000.0
+            self._stats["queued_ms"].append(queued_ms)
+
+            self._active += 1
+            self._stats["active_peak"] = max(self._stats["active_peak"], self._active)
+
+            status = "ok"
+            error_code = None
+            error_message = None
+            output: Dict[str, Any] = {}
+
+            self._recorder.on_flow_started(request.spec.name, request.model_name)
+
+            exec_start = time.perf_counter()
+            try:
+                output = await self._run_flow(request)
+            except Exception as exc:
+                status = "error"
+                error_code = exc.__class__.__name__
+                error_message = str(exc)
+                output = {}
+                self._recorder.on_flow_finished(request.spec.name, request.model_name, "error")
+                self._stats["error"] += 1
+            else:
+                self._recorder.on_flow_finished(request.spec.name, request.model_name, "ok")
+                self._stats["success"] += 1
+            finally:
+                self._active -= 1
+
+            exec_ms = (time.perf_counter() - exec_start) * 1000.0
+            self._stats["exec_ms"].append(exec_ms)
+
+            result = {
+                "status": status,
+                "run_id": request.run_id,
+                "queued_ms": queued_ms,
+                "exec_ms": exec_ms,
+                "output": output,
+                "error_code": error_code,
+                "error_message": error_message,
+                "flow": request.flow_name,
+                "flow_id": request.flow_id,
+                "flow_rev": request.flow_rev,
+                "flow_name": request.flow_name,
+            }
+
+            idem_key = request.ctx.get("idempotency_key")
+            if isinstance(idem_key, str):
+                self._inflight.pop(idem_key, None)
+                self._maybe_cache_result(idem_key, result)
+
+            if not request.future.done():
+                request.future.set_result(result)
+
+            self._queue.task_done()
+            self._record_queue_depth()
+
+    async def _run_flow(self, request: _Request) -> Dict[str, Any]:
+        spec = request.spec
+        if request.response_mode is ResponseMode.DEFERRED:
+            return await self._run_deferred(request)
+        result = await self._execute_immediately(request)
+        return {
+            "mode": "immediate",
+            "steps": result["steps"],
+            "state": result["state"],
+        }
+
+    async def _run_deferred(self, request: _Request) -> Dict[str, Any]:
+        spec = request.spec
+        payload = request.inputs
+        if not self._policies.allow_deferred:
+            raise RuntimeError("Deferred execution is disabled by policy")
+        token = self._correlator.reserve(spec.name, payload)
+        req_id = payload.get("req_id")
+        ready: Optional[Dict[str, Any]] = None
+        if isinstance(req_id, str):
+            ready = self._correlator.consume_signal(req_id)
+            wait_s = max(float(getattr(self._policies, "short_wait_s", 0.0)), 0.0)
+            if ready is None and wait_s > 0:
+                deadline = time.time() + wait_s
+                while ready is None and time.time() < deadline:
+                    await asyncio.sleep(min(0.005, max(0.0, deadline - time.time())))
+                    ready = self._correlator.consume_signal(req_id)
+        if ready is not None:
+            self._correlator.consume(token)
+            return {
+                "mode": "deferred",
+                "status": "ready",
+                "token": token,
+                "result": ready,
+            }
+        return {
+            "mode": "deferred",
+            "status": "pending",
+            "token": token,
+        }
+
+    async def _execute_immediately(
         self,
-        spec: FlowSpec,
-        inputs: Optional[Dict[str, Any]] = None,
+        request: _Request,
     ) -> Dict[str, Any]:
-        """Walk the DAG linearly while emitting trace spans."""
-
-        executed: list[str] = []
+        spec = request.spec
+        inputs = request.inputs
+        executed: list[Dict[str, Any]] = []
         current = spec.entrypoint or (next(iter(spec.steps)) if spec.steps else None)
         visited = set()
+        state: Any = dict(inputs or {})
 
         while current:
             step_def = spec.step(current)
             t0 = time.time()
             error: Optional[str] = None
             next_step: Optional[str] = None
+            step_ctx: Dict[str, Any] = {
+                "flow": spec.name,
+                "flow_id": request.flow_id,
+                "flow_rev": request.flow_rev,
+                "step": current,
+                "index": len(executed),
+                "executed": list(executed),
+                "run_id": request.run_id,
+            }
+            caught_exc: Optional[BaseException] = None
             try:
+                seq = len(executed)
+                step_ctx["seq"] = seq
+                step_ctx["step_id"] = f"{request.run_id}:{seq}:{current}"
+                await self._invoke_hook(step_def.before, step_ctx)
+                state = await self._run_step(step_def, step_ctx, state)
+                await self._invoke_after(step_def.after, step_ctx, state)
                 next_step = self._next_step(step_def, inputs)
-            except Exception as exc:  # pragma: no cover - defensive guard
+            except Exception as exc:
                 error = str(exc)
+                await self._invoke_error(step_def.on_error, step_ctx, exc)
+                caught_exc = exc
             t1 = time.time()
 
-            executed.append(current)
+            executed.append({"name": current, "step_id": step_ctx["step_id"], "seq": step_ctx["seq"]})
             visited.add(current)
 
             if self._trace_sink is not None:
                 span = TraceSpanLike(
                     flow=spec.name,
-                    rule=spec.name,
+                    flow_id=request.flow_id,
+                    flow_rev=request.flow_rev,
+                    run_id=request.run_id,
                     step=current,
+                    step_id=step_ctx.get("step_id", current),
+                    seq=step_ctx.get("seq", 0),
                     t0=t0,
                     t1=t1,
                     error=error,
+                    rule=spec.name,
                 )
                 self._trace_sink.append(span)
 
-            if error:
-                break
+            if caught_exc is not None:
+                raise caught_exc
 
             if not next_step or next_step in visited:
                 break
             current = next_step
 
-        return {"inputs": dict(inputs or {}), "steps": executed}
+        return {"steps": executed, "state": state}
 
     def _next_step(self, step: StepDef, inputs: Optional[Dict[str, Any]]) -> Optional[str]:  # noqa: ARG002
         if not step.next_steps:
@@ -154,3 +393,115 @@ class FlowRuntime:
             if isinstance(default, str) and default in step.next_steps:
                 return default
         return step.next_steps[0]
+
+    async def _run_step(self, step: StepDef, ctx: Dict[str, Any], state: Any) -> Any:
+        if step.operation is Operation.TASK:
+            if step.run is not None:
+                result = await self._invoke_callable(step.run, ctx, state)
+                return state if result is None else result
+            return state
+        return state
+
+    async def _invoke_hook(self, hook, *args):  # type: ignore[no-untyped-def]
+        if hook is None:
+            return None
+        return await self._invoke_callable(hook, *args)
+
+    async def _invoke_after(self, hook, ctx: Dict[str, Any], output: Any):  # type: ignore[no-untyped-def]
+        if hook is None:
+            return None
+        return await self._invoke_callable(hook, ctx, output)
+
+    async def _invoke_error(self, hook, ctx: Dict[str, Any], exc: BaseException):  # type: ignore[no-untyped-def]
+        if hook is None:
+            return None
+        return await self._invoke_callable(hook, ctx, exc)
+
+    async def _invoke_callable(self, fn, *args):  # type: ignore[no-untyped-def]
+        if inspect.iscoroutinefunction(fn):
+            return await fn(*args)
+        result = await asyncio.to_thread(fn, *args)
+        if inspect.isawaitable(result):
+            return await result  # pragma: no cover
+        return result
+
+    async def aclose(self) -> None:
+        if not self._started:
+            return
+        for _ in self._workers:
+            await self._queue.put(None)
+        await asyncio.gather(*self._workers, return_exceptions=True)
+        self._started = False
+        self._workers.clear()
+
+    def get_stats(self) -> Dict[str, Any]:
+        def percentile(data: list[float], pct: float) -> float:
+            if not data:
+                return 0.0
+            ordered = sorted(data)
+            idx = int(round((pct / 100.0) * (len(ordered) - 1)))
+            return ordered[idx]
+
+        queued = list(self._stats["queued_ms"])
+        execs = list(self._stats["exec_ms"])
+
+        return {
+            "queue_depth_peak": self._stats["queue_depth_peak"],
+            "queue_depth_current": self._stats["queue_depth_current"],
+            "active_peak": self._stats["active_peak"],
+            "rejected": self._stats["rejected"],
+            "rejected_reason": dict(self._stats["rejected_reason"]),
+            "success": self._stats["success"],
+            "error": self._stats["error"],
+            "queued_ms_p50": percentile(queued, 50.0),
+            "queued_ms_p95": percentile(queued, 95.0),
+            "queued_ms_p99": percentile(queued, 99.0),
+            "exec_ms_p50": percentile(execs, 50.0),
+            "exec_ms_p95": percentile(execs, 95.0),
+            "exec_ms_p99": percentile(execs, 99.0),
+        }
+
+    def _maybe_cache_result(self, key: str, result: Dict[str, Any]) -> None:
+        if self._idempotency_ttl <= 0 or self._idempotency_cache_size == 0:
+            return
+        if result.get("status") != "ok":
+            return
+        expires = time.monotonic() + self._idempotency_ttl
+        self._cache[key] = (expires, self._clone_result(result))
+        self._cache.move_to_end(key)
+        while len(self._cache) > self._idempotency_cache_size:
+            self._cache.popitem(last=False)
+
+    def _get_cached_result(self, key: str) -> Optional[Dict[str, Any]]:
+        if self._idempotency_ttl <= 0 or self._idempotency_cache_size == 0:
+            return None
+        entry = self._cache.get(key)
+        if not entry:
+            return None
+        expires, value = entry
+        if expires < time.monotonic():
+            self._cache.pop(key, None)
+            return None
+        self._cache.move_to_end(key)
+        return self._clone_result(value)
+
+    @staticmethod
+    def _clone_result(result: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "status": result.get("status"),
+            "run_id": result.get("run_id"),
+            "queued_ms": result.get("queued_ms"),
+            "exec_ms": result.get("exec_ms"),
+            "output": copy.deepcopy(result.get("output")),
+            "error_code": result.get("error_code"),
+            "error_message": result.get("error_message"),
+            "flow": result.get("flow"),
+            "flow_id": result.get("flow_id"),
+            "flow_rev": result.get("flow_rev"),
+            "flow_name": result.get("flow_name"),
+        }
+
+    def _record_queue_depth(self) -> None:
+        depth = self._queue.qsize()
+        self._stats["queue_depth_current"] = depth
+        self._stats["queue_depth_peak"] = max(self._stats["queue_depth_peak"], depth)
