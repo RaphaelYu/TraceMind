@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
+import logging
 import time
 import uuid
 from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Tuple
-import copy
+from dataclasses import dataclass, field
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence, Tuple
 
 from .correlate import CorrelationHub
 from .flow import Flow
@@ -16,6 +17,9 @@ from .policies import FlowPolicies
 from .spec import FlowSpec, StepDef
 from .trace_store import FlowTraceSink, TraceSpanLike
 from tm.obs.recorder import Recorder
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -33,6 +37,29 @@ class _Request:
     enqueue_ts: float
 
 
+@dataclass
+class FlowRunRecord:
+    """Normalized run completion payload."""
+
+    flow: str
+    flow_id: str
+    flow_rev: str
+    run_id: str
+    selected_flow: str
+    binding: Optional[str]
+    status: str
+    outcome: Optional[str]
+    queued_ms: float
+    exec_ms: float
+    duration_ms: float
+    start_ts: float
+    end_ts: float
+    cost_usd: Optional[float]
+    user_rating: Optional[float]
+    reward: Optional[float] = None
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+
 class FlowRuntime:
     """Async-first runtime with bounded concurrency and idempotency support."""
 
@@ -48,12 +75,14 @@ class FlowRuntime:
         queue_wait_timeout_ms: int = 0,
         idempotency_ttl_sec: float = 30.0,
         idempotency_cache_size: int = 1024,
+        run_listeners: Sequence[Callable[[FlowRunRecord], Awaitable[None] | None]] | None = None,
     ) -> None:
         self._flows: Dict[str, Flow] = dict(flows or {})
         self._policies = policies or FlowPolicies()
         self._correlator = correlator or CorrelationHub()
         self._trace_sink = trace_sink
         self._recorder = Recorder.default()
+        self._run_end_callbacks: list[Callable[[FlowRunRecord], Awaitable[None] | None]] = list(run_listeners or [])
 
         self._max_concurrency = max(1, int(max_concurrency))
         self._queue_capacity = max(0, int(queue_capacity))
@@ -228,6 +257,7 @@ class FlowRuntime:
 
             self._recorder.on_flow_started(request.spec.name, request.model_name)
 
+            run_start_ts = time.time()
             exec_start = time.perf_counter()
             try:
                 output = await self._run_flow(request)
@@ -245,6 +275,7 @@ class FlowRuntime:
                 self._active -= 1
 
             exec_ms = (time.perf_counter() - exec_start) * 1000.0
+            run_end_ts = time.time()
             self._stats["exec_ms"].append(exec_ms)
 
             result = {
@@ -268,6 +299,19 @@ class FlowRuntime:
 
             if not request.future.done():
                 request.future.set_result(result)
+
+            record = self._build_run_record(
+                request,
+                status=status,
+                output=output,
+                queued_ms=queued_ms,
+                exec_ms=exec_ms,
+                run_start_ts=run_start_ts,
+                run_end_ts=run_end_ts,
+                error_code=error_code,
+                error_message=error_message,
+            )
+            self._schedule_run_end(record)
 
             self._queue.task_done()
             self._record_queue_depth()
@@ -326,8 +370,7 @@ class FlowRuntime:
 
         while current:
             step_def = spec.step(current)
-            t0 = time.time()
-            error: Optional[str] = None
+            start_ts = time.time()
             next_step: Optional[str] = None
             step_ctx: Dict[str, Any] = {
                 "flow": spec.name,
@@ -339,19 +382,25 @@ class FlowRuntime:
                 "run_id": request.run_id,
             }
             caught_exc: Optional[BaseException] = None
+            status = "ok"
+            error_code: Optional[str] = None
+            error_message: Optional[str] = None
             try:
                 seq = len(executed)
                 step_ctx["seq"] = seq
-                step_ctx["step_id"] = f"{request.run_id}:{seq}:{current}"
+                step_ctx["step_id"] = spec.step_id(current)
+                step_ctx["event_id"] = f"{request.run_id}:{seq}"
                 await self._invoke_hook(step_def.before, step_ctx)
                 state = await self._run_step(step_def, step_ctx, state)
                 await self._invoke_after(step_def.after, step_ctx, state)
                 next_step = self._next_step(step_def, inputs)
             except Exception as exc:
-                error = str(exc)
+                status = "error"
+                error_code = exc.__class__.__name__
+                error_message = str(exc)
                 await self._invoke_error(step_def.on_error, step_ctx, exc)
                 caught_exc = exc
-            t1 = time.time()
+            end_ts = time.time()
 
             executed.append({"name": current, "step_id": step_ctx["step_id"], "seq": step_ctx["seq"]})
             visited.add(current)
@@ -365,9 +414,11 @@ class FlowRuntime:
                     step=current,
                     step_id=step_ctx.get("step_id", current),
                     seq=step_ctx.get("seq", 0),
-                    t0=t0,
-                    t1=t1,
-                    error=error,
+                    start_ts=start_ts,
+                    end_ts=end_ts,
+                    status=status,
+                    error_code=error_code,
+                    error_message=error_message,
                     rule=spec.name,
                 )
                 self._trace_sink.append(span)
@@ -427,12 +478,16 @@ class FlowRuntime:
 
     async def aclose(self) -> None:
         if not self._started:
+            if self._trace_sink is not None:
+                self._trace_sink.close()
             return
         for _ in self._workers:
             await self._queue.put(None)
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._started = False
         self._workers.clear()
+        if self._trace_sink is not None:
+            self._trace_sink.close()
 
     def get_stats(self) -> Dict[str, Any]:
         def percentile(data: list[float], pct: float) -> float:
@@ -505,3 +560,130 @@ class FlowRuntime:
         depth = self._queue.qsize()
         self._stats["queue_depth_current"] = depth
         self._stats["queue_depth_peak"] = max(self._stats["queue_depth_peak"], depth)
+
+    def add_run_listener(self, listener: Callable[[FlowRunRecord], Awaitable[None] | None]) -> None:
+        self._run_end_callbacks.append(listener)
+
+    def _schedule_run_end(self, record: FlowRunRecord) -> None:
+        if not self._run_end_callbacks:
+            return
+        loop = asyncio.get_running_loop()
+        for callback in self._run_end_callbacks:
+            try:
+                result = callback(record)
+            except Exception:  # pragma: no cover - defensive guard
+                logger.exception("run_end listener invocation failed")
+                continue
+            if asyncio.iscoroutine(result):
+                loop.create_task(self._guard_run_end(result))
+
+    async def _guard_run_end(self, coro: Awaitable[None]) -> None:
+        try:
+            await coro
+        except Exception:  # pragma: no cover - defensive guard
+            logger.exception("run_end listener coroutine failed")
+
+    def _build_run_record(
+        self,
+        request: _Request,
+        *,
+        status: str,
+        output: Dict[str, Any],
+        queued_ms: float,
+        exec_ms: float,
+        run_start_ts: float,
+        run_end_ts: float,
+        error_code: Optional[str],
+        error_message: Optional[str],
+    ) -> FlowRunRecord:
+        outcome = _extract_str(output, "status")
+        state = output.get("state") if isinstance(output, Mapping) else None
+        if outcome is None and isinstance(state, Mapping):
+            outcome = (
+                _extract_str(state, "outcome")
+                or _extract_str(state, "status")
+            )
+
+        cost = _extract_float(output, "cost_usd")
+        rating = _extract_float(output, "user_rating")
+
+        if cost is None and isinstance(state, Mapping):
+            cost = _extract_float(state, "cost_usd")
+        if rating is None and isinstance(state, Mapping):
+            rating = _extract_float(state, "user_rating")
+
+        binding = _extract_binding(request.ctx)
+        selected_flow = _extract_selected_flow(request)
+
+        meta: Dict[str, Any] = {
+            "model": _extract_str(request.ctx, "model"),
+            "operation": _extract_operation(request.ctx),
+            "error_code": error_code,
+            "error_message": error_message,
+        }
+        if isinstance(request.inputs, Mapping):
+            meta["inputs_size"] = len(request.inputs)
+
+        duration_ms = max(0.0, (run_end_ts - run_start_ts) * 1000.0)
+
+        return FlowRunRecord(
+            flow=request.flow_name,
+            flow_id=request.flow_id,
+            flow_rev=request.flow_rev,
+            run_id=request.run_id,
+            selected_flow=selected_flow,
+            binding=binding,
+            status=status,
+            outcome=outcome,
+            queued_ms=queued_ms,
+            exec_ms=exec_ms,
+            duration_ms=duration_ms,
+            start_ts=run_start_ts,
+            end_ts=run_end_ts,
+            cost_usd=cost,
+            user_rating=rating,
+            meta={k: v for k, v in meta.items() if v is not None},
+        )
+
+
+def _extract_str(source: Any, key: str) -> Optional[str]:
+    if isinstance(source, Mapping):
+        value = source.get(key)
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def _extract_float(source: Any, key: str) -> Optional[float]:
+    if isinstance(source, Mapping):
+        value = source.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+def _extract_binding(ctx: Any) -> Optional[str]:
+    if isinstance(ctx, Mapping):
+        value = ctx.get("binding")
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def _extract_selected_flow(request: _Request) -> str:
+    ctx = request.ctx
+    if isinstance(ctx, Mapping):
+        selected = ctx.get("selected_flow")
+        if isinstance(selected, str):
+            return selected
+    return request.flow_name
+
+
+def _extract_operation(ctx: Any) -> Optional[str]:
+    if isinstance(ctx, Mapping):
+        op = ctx.get("operation") or ctx.get("op")
+        if isinstance(op, str):
+            return op
+        if hasattr(op, "value"):
+            return getattr(op, "value")
+    return None

@@ -2,14 +2,21 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException
+
+from pathlib import Path
 
 from tm.flow.runtime import FlowRuntime
 from tm.flow.operations import ResponseMode
 from tm.flow.policies import FlowPolicies
 from tm.flow.trace_store import FlowTraceSink
+from tm.flow.artifacts import export_flow_artifact
+from tm.ai.retrospect import Retrospect
+from tm.ai.run_pipeline import RewardWeights, RunEndPipeline
+from tm.ai.tuner import BanditTuner
+from tm.ai.policy_adapter import AsyncMcpClient, McpPolicyAdapter
 from tm.io.http2_app import cfg
 from .example_crud_flows import build_flows
 from tm.flow.spec import FlowSpec
@@ -50,11 +57,32 @@ def _load_flows() -> Dict[str, object]:
 
 _flows = _load_flows()
 _trace_sink = FlowTraceSink(dir_path=os.path.join(cfg.data_dir, "trace"))
+_retrospect = Retrospect()
+_tuner = BanditTuner()
+_policy_adapter: Optional[McpPolicyAdapter] = None
+if cfg.policy_mcp_url:
+    _policy_adapter = McpPolicyAdapter(
+        _tuner,
+        AsyncMcpClient(base_url=cfg.policy_mcp_url, timeout=2.0, retries=2, backoff=0.25),
+    )
+_run_pipeline = RunEndPipeline(_retrospect, _tuner, weights=RewardWeights(), policy_adapter=_policy_adapter)
 _runtime = FlowRuntime(
     flows=_flows,
     trace_sink=_trace_sink,
     policies=FlowPolicies(response_mode=ResponseMode.DEFERRED),
+    run_listeners=(_run_pipeline.on_run_end,),
 )
+
+_artifact_dir = Path(cfg.data_dir) / "artifacts" / "flows"
+for flow in _flows.values():
+    try:
+        spec = flow.spec()
+    except Exception:
+        continue
+    try:
+        export_flow_artifact(spec, _artifact_dir)
+    except Exception:
+        continue
 
 
 @router.post("/run")

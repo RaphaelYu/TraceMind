@@ -36,6 +36,7 @@ class FlowInspector:
             "steps": [
                 {
                     "name": step.name,
+                    "step_id": self.spec.step_id(step.name),
                     "operation": step.operation.name,
                     "next": list(step.next_steps),
                     "config": dict(step.config),

@@ -1,9 +1,14 @@
+import asyncio
+
+import orjson
 import pytest
 
 from tm.flow.operations import Operation, ResponseMode
 from tm.flow.policies import FlowPolicies
 from tm.flow.runtime import FlowRuntime
 from tm.flow.spec import FlowSpec, StepDef
+from tm.flow.trace_store import FlowTraceSink
+from tm.storage.binlog import BinaryLogReader
 
 
 class DummyFlow:
@@ -95,3 +100,54 @@ async def test_run_deferred_requires_policy_opt_in():
 
     await deferred_runtime.aclose()
     await strict_runtime.aclose()
+
+
+@pytest.mark.asyncio
+async def test_runtime_emits_trace_span(tmp_path):
+    spec = FlowSpec(name="trace-demo")
+    spec.add_step(StepDef("start", Operation.TASK))
+    flow = DummyFlow(spec)
+
+    trace_sink = FlowTraceSink(dir_path=str(tmp_path))
+    runtime = FlowRuntime({spec.name: flow}, trace_sink=trace_sink)
+
+    result = await runtime.run("trace-demo")
+    assert result["status"] == "ok"
+
+    await runtime.aclose()
+
+    reader = BinaryLogReader(str(tmp_path))
+    records = list(reader.scan())
+    payloads = [orjson.loads(payload) for et, payload in records if et == "FlowTrace"]
+    assert payloads, "expected at least one trace span"
+
+    event = payloads[0]
+    assert event["flow_rev"] == spec.flow_revision()
+    assert event["step_id"] == spec.step_id("start")
+    assert event["seq"] == 0
+    assert event["status"] == "ok"
+    assert event["error_code"] is None
+    assert event["start_ts"] <= event["end_ts"]
+
+
+@pytest.mark.asyncio
+async def test_runtime_notifies_run_end_listeners():
+    spec = FlowSpec(name="listener")
+    spec.add_step(StepDef("start", Operation.TASK))
+    flow = DummyFlow(spec)
+
+    captured = []
+
+    async def listener(record):
+        captured.append(record)
+
+    runtime = FlowRuntime({spec.name: flow}, run_listeners=(listener,))
+    await runtime.run("listener")
+    await asyncio.sleep(0)
+    await runtime.aclose()
+
+    assert len(captured) == 1
+    record = captured[0]
+    assert record.status == "ok"
+    assert record.binding is None
+    assert record.selected_flow == "listener"

@@ -1,6 +1,7 @@
 import os
 
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 
@@ -14,6 +15,7 @@ class Config:
     q_max: int = int(os.getenv("Q_MAX", "50000"))
     bind_host: str = os.getenv("BIND_HOST", "0.0.0.0")
     bind_port: int = int(os.getenv("BIND_PORT", "8443"))
+    policy_mcp_url: Optional[str] = os.getenv("POLICY_MCP_URL")
 
     def effective_log_dir(self) -> str:
         return self.log_dir or (self.data_dir.rstrip("/") + "/eventlog")

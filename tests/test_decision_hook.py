@@ -8,7 +8,7 @@ class DummyRuntime:
     def __init__(self):
         self.calls = []
 
-    async def run(self, name, inputs=None, response_mode=None):  # noqa: ANN001
+    async def run(self, name, inputs=None, response_mode=None, ctx=None):  # noqa: ANN001
         self.calls.append((name, inputs, response_mode))
         return {
             "status": "ok",
@@ -59,5 +59,3 @@ async def test_decision_hook_can_override_binding():
     assert hook.before_ctx["selected"] == "special"
     assert result["flow"] == "flow-special"
     assert hook.after_result["flow"] == "flow-special"
-
-    await runtime.aclose()

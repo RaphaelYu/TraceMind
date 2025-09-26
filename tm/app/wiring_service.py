@@ -11,7 +11,7 @@ from tm.service import BindingRule, BindingSpec, Operation, ServiceBody
 from tm.service.router import OperationRouter
 from tm.model.spec import ModelSpec, FieldSpec
 
-from tm.app.wiring_flows import _runtime as flow_runtime
+from tm.app.wiring_flows import _runtime as flow_runtime, _tuner as flow_tuner, _policy_adapter
 
 
 router = APIRouter(prefix="/service", tags=["service"])
@@ -52,13 +52,20 @@ _model_spec = ModelSpec(
 _binding = BindingSpec(
     model=_model_spec.name,
     rules=[BindingRule(operation=Operation.READ, flow_name="read-generic")],
+    policy_endpoint="mcp:policy" if _policy_adapter else None,
+    policy_ref=_model_spec.name,
 )
 
 _service_body = ServiceBody(
     model=_model_spec,
     runtime=flow_runtime,
     binding=_binding,
-    router=OperationRouter(flow_runtime, {_model_spec.name: _binding}),
+    router=OperationRouter(
+        flow_runtime,
+        {_model_spec.name: _binding},
+        tuner=flow_tuner,
+        policy_adapter=_policy_adapter,
+    ),
 )
 
 

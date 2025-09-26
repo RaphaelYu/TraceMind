@@ -29,7 +29,7 @@ async def test_operation_router_dispatch_invokes_runtime_with_flow():
     calls = []
 
     class FakeRuntime:
-        async def run(self, name, inputs=None, response_mode=None):  # noqa: ANN001
+        async def run(self, name, inputs=None, response_mode=None, ctx=None):  # noqa: ANN001
             calls.append((name, inputs, response_mode))
             return {
                 "status": "ok",
@@ -56,5 +56,3 @@ async def test_operation_router_dispatch_invokes_runtime_with_flow():
     assert result["flow"] == "flow-read"
     assert result["status"] == "ok"
     assert result["output"]["status"] == "pending"
-
-    await runtime.aclose()

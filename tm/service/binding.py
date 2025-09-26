@@ -52,6 +52,8 @@ class BindingSpec:
 
     model: str
     rules: Iterable[BindingRule]
+    policy_endpoint: Optional[str] = None
+    policy_ref: Optional[str] = None
 
     def __post_init__(self) -> None:
         self._rules = tuple(self.rules)
