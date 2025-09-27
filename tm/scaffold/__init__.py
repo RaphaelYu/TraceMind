@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import stat
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,18 @@ PROJECT_CONFIG: Dict[str, Dict[str, object]] = {
         "policy_endpoint": "",
     },
 }
+
+
+_SLUG_RE = re.compile(r"[^a-z0-9\-]+")
+
+
+def _slug(value: str) -> str:
+    """Convert human input into a filesystem-friendly slug."""
+
+    normalized = value.strip().lower().replace(" ", "-")
+    normalized = _SLUG_RE.sub("-", normalized)
+    normalized = normalized.strip("-")
+    return normalized or "item"
 
 
 @dataclass

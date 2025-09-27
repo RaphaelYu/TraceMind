@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict
 
-from tm.flow.recipe_loader import RecipeLoader
+from tm.flow.recipe_loader import RecipeLoader, RecipeError
 from tm.flow.runtime import FlowRuntime
 from tm.flow.spec import FlowSpec
 from tm.flow.flow import Flow
@@ -42,10 +42,10 @@ async def _run(spec: FlowSpec, inputs: Dict[str, Any]) -> Dict[str, Any]:
 
 def run_recipe(source: str | Path, inputs: Dict[str, Any] | None = None) -> Dict[str, Any]:
     loader = RecipeLoader()
-    spec = loader.load(source)
     try:
+        spec = loader.load(source)
         return asyncio.run(_run(spec, dict(inputs or {})))
-    except Exception as exc:  # pragma: no cover - surface error
+    except (RecipeError, Exception) as exc:  # pragma: no cover - surface error
         return {
             "status": "error",
             "run_id": uuid.uuid4().hex,

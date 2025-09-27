@@ -27,7 +27,7 @@ class ArmState:
             self.score += alpha * (reward - self.score)
 
     def seen(self) -> bool:
-        return self.updates > 0
+        return self.pulls > 0 or self.updates > 0
 
 
 @dataclass
@@ -72,7 +72,7 @@ class BanditTuner:
             for flow in candidates:
                 ordered.append(flow)
                 arms.setdefault(flow, ArmState())
-            unseen = [flow for flow in ordered if not arms[flow].seen()]
+            unseen = [flow for flow in ordered if arms[flow].pulls == 0]
             if unseen:
                 choice = unseen[0]
             else:

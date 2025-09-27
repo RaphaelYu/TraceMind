@@ -32,13 +32,27 @@ class RecipeLoader:
     # Parsing helpers
     # ------------------------------------------------------------------
     def _read_source(self, source: str | Path) -> Dict[str, Any]:
-        if isinstance(source, Path) or (isinstance(source, str) and Path(source).exists()):
-            path = Path(source)
+        if isinstance(source, Path):
+            path = source
             text = path.read_text(encoding="utf-8")
             hint = path.suffix.lower()
             return self._parse_text(text, hint)
 
         if isinstance(source, str):
+            stripped = source.strip()
+            if "\n" in source or stripped.startswith("{") or stripped.startswith("[") or stripped.startswith("flow:"):
+                return self._parse_text(source, None)
+            try:
+                path = Path(source)
+            except OSError:
+                return self._parse_text(source, None)
+            try:
+                if path.exists():
+                    text = path.read_text(encoding="utf-8")
+                    hint = path.suffix.lower()
+                    return self._parse_text(text, hint)
+            except OSError:
+                return self._parse_text(source, None)
             return self._parse_text(source, None)
 
         raise RecipeError("Unsupported recipe source type")
@@ -245,7 +259,10 @@ class RecipeLoader:
             targets = set(adjacency.get(step_id, ()))
             case_targets = set(cases.values())
             if default:
-                case_targets.add(default)
+                if default in cases:
+                    case_targets.add(cases[default])
+                else:
+                    case_targets.add(default)
             missing = case_targets - targets
             if missing:
                 raise RecipeError(
