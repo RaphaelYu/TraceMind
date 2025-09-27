@@ -6,7 +6,7 @@ import pytest
 
 from tm.flow.recipe_loader import RecipeLoader, RecipeError
 
-HANDLERS = "tests.examples"
+HANDLERS = "tm.examples.recipes"
 
 LINEAR_RECIPE = {
     "flow": {
@@ -147,7 +147,7 @@ flow:
     - id: prepare
       kind: task
       hooks:
-        run: tests.examples.prepare
+        run: tm.examples.recipes.prepare
     - id: finish
       kind: finish
   edges:

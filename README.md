@@ -83,6 +83,14 @@ Agent Evolution Timeline
 
 ---
 
+## 📚 Documentation
+
+- [Flow & policy recipes](docs/recipes-v1.md)
+- [Helpers reference](docs/helpers.md)
+- [Policy lifecycle & MCP integration](docs/policy.md)
+
+---
+
 ## 🚀 Quick Start
 
 ### Requirements
@@ -94,21 +102,16 @@ Agent Evolution Timeline
 
 ```bash
 # clone
- git clone https://github.com/<your-username>/trace-mind.git
- cd trace-mind
+git clone https://github.com/<your-username>/trace-mind.git
+cd trace-mind
 
-# run minimal server
- python -m agent.cli run --bind 0.0.0.0:8080 --data /tmp/trace-mind
+# install and scaffold a demo project
+pip install -e .
+tm init demo
+cd demo
 
-# test a command
- curl -X POST http://localhost:8080/api/commands/upsert \
-   -H "Content-Type: application/json" \
-   -d '{"kind":"NFProfile","obj_id":"nf-1","payload":{"status":"ALIVE"}}'
-
-# get summary via chat endpoint
- curl -X POST http://localhost:8080/agent/chat \
-   -H "Content-Type: application/json" \
-   -d '{"text":"summarize last 10 minutes"}'
+# execute the sample flow
+tm run flows/hello.yaml -i '{"name":"world"}'
 ```
 
 ### Run in container

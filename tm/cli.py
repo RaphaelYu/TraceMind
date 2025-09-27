@@ -1,11 +1,15 @@
 # tm/cli.py
 import argparse
+import json
+import sys
 from pathlib import Path
+from typing import Any, Dict
 from datetime import datetime, timedelta, timezone
 from tm.app.demo_plan import build_plan
 from tm.pipeline.analysis import analyze_plan
 from tm.obs.retrospect import load_window
 from tm.scaffold import create_flow, create_policy, init_project, find_project_root
+from tm.run_recipe import run_recipe
 
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
@@ -81,8 +85,6 @@ if __name__ == "__main__":
                 label_str = ";".join(f"{k}={v}" for k, v in sorted(entry["labels"].items()))
                 print(f"{entry['type']},{entry['name']},{label_str},{entry['value']}")
         else:
-            import json
-
             print(json.dumps(entries, indent=2))
 
     sp_metrics = sub.add_parser("metrics", help="metrics tools")
@@ -97,10 +99,22 @@ if __name__ == "__main__":
     init_parser.add_argument("project_name", help="project directory to create")
     init_parser.add_argument("--with-prom", action="store_true", help="include Prometheus hook scaffold")
     init_parser.add_argument("--with-retrospect", action="store_true", help="include Retrospect exporter scaffold")
+    init_parser.add_argument("--force", action="store_true", help="overwrite existing scaffold files")
 
     def _cmd_init(args):
-        init_project(args.project_name, Path.cwd(), with_prom=args.with_prom, with_retrospect=args.with_retrospect)
-        print(f"Project '{args.project_name}' created")
+        try:
+            init_project(
+                args.project_name,
+                Path.cwd(),
+                with_prom=args.with_prom,
+                with_retrospect=args.with_retrospect,
+                force=args.force,
+            )
+        except FileExistsError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(f"Project '{args.project_name}' ready")
 
     init_parser.set_defaults(func=_cmd_init)
 
@@ -114,9 +128,14 @@ if __name__ == "__main__":
     variant.add_argument("--parallel", action="store_true", help="include a parallel step")
 
     def _cmd_new_flow(args):
-        root = find_project_root(Path.cwd())
-        create_flow(args.flow_name, project_root=root, switch=args.switch, parallel=args.parallel)
-        print(f"Flow '{args.flow_name}' created")
+        try:
+            root = find_project_root(Path.cwd())
+            created = create_flow(args.flow_name, project_root=root, switch=args.switch, parallel=args.parallel)
+        except Exception as exc:  # pragma: no cover - CLI error path
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(f"Flow created: {created.relative_to(root)}")
 
     flow_parser.set_defaults(func=_cmd_new_flow)
 
@@ -128,12 +147,46 @@ if __name__ == "__main__":
     policy_parser.add_argument("--mcp-endpoint", help="default MCP endpoint", default=None)
 
     def _cmd_new_policy(args):
-        root = find_project_root(Path.cwd())
-        strat = "ucb" if args.ucb else "epsilon"
-        create_policy(args.policy_name, project_root=root, strategy=strat, mcp_endpoint=args.mcp_endpoint)
-        print(f"Policy '{args.policy_name}' created")
+        try:
+            root = find_project_root(Path.cwd())
+            strat = "ucb" if args.ucb else "epsilon"
+            created = create_policy(args.policy_name, project_root=root, strategy=strat, mcp_endpoint=args.mcp_endpoint)
+        except Exception as exc:  # pragma: no cover - CLI error path
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(f"Policy created: {created.relative_to(root)}")
 
     policy_parser.set_defaults(func=_cmd_new_policy)
+
+    run_parser = sub.add_parser("run", help="execute a flow recipe")
+    run_parser.add_argument("recipe", help="path to recipe (JSON or YAML)")
+    run_parser.add_argument("-i", "--input", help="JSON string or @file with initial state")
+
+    def _cmd_run(args):
+        payload: Dict[str, Any]
+        if args.input:
+            raw = args.input
+            if raw.startswith("@"):
+                data = Path(raw[1:]).read_text(encoding="utf-8")
+            else:
+                data = raw
+            try:
+                payload_obj = json.loads(data)
+            except json.JSONDecodeError as exc:  # pragma: no cover - CLI error path
+                print(f"Invalid input JSON: {exc}", file=sys.stderr)
+                sys.exit(1)
+            if not isinstance(payload_obj, dict):
+                print("Input JSON must decode to an object", file=sys.stderr)
+                sys.exit(1)
+            payload = payload_obj
+        else:
+            payload = {}
+
+        result = run_recipe(Path(args.recipe), payload)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    run_parser.set_defaults(func=_cmd_run)
 
     args = parser.parse_args()
     if hasattr(args, "func"):

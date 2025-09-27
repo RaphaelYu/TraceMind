@@ -126,7 +126,7 @@ Loaders MUST enforce the following:
 5. **Hook resolution:** when present, hook strings should resolve to importable callables.
 6. **Policy consistency:** `policy.strategy` must match available handlers; unknown strategies require explicit hooks.
 
-Violations should raise a descriptive error before the flow/policy is registered.
+Violations should raise a descriptive error before the flow/policy is registered. The runtime uses the `RecipeLoader` class to enforce these checks before creating a `FlowSpec`.
 
 ## 4. Copyable Examples
 
@@ -141,8 +141,8 @@ Violations should raise a descriptive error before the flow/policy is registered
     "tags": ["demo", "linear"],
     "entry": "prepare",
     "steps": [
-      {"id": "prepare", "kind": "task", "hooks": {"run": "demo.flows.checkout.prepare"}},
-      {"id": "charge", "kind": "task", "hooks": {"run": "demo.flows.checkout.charge"}},
+      {"id": "prepare", "kind": "task", "hooks": {"run": "tm.examples.recipes.prepare"}},
+      {"id": "charge", "kind": "task", "hooks": {"run": "tm.examples.recipes.charge"}},
       {"id": "done", "kind": "finish"}
     ],
     "edges": [
@@ -164,15 +164,15 @@ Violations should raise a descriptive error before the flow/policy is registered
     "tags": ["switch", "risk"],
     "entry": "score",
     "steps": [
-      {"id": "score", "kind": "task", "hooks": {"run": "demo.flows.fraud.score"}},
+      {"id": "score", "kind": "task", "hooks": {"run": "tm.examples.recipes.score"}},
       {
         "id": "router",
         "kind": "switch",
         "config": {"cases": {"manual": "manual", "auto": "approve"}, "default": "auto"},
-        "hooks": {"run": "demo.flows.fraud.route"}
+        "hooks": {"run": "tm.examples.recipes.route"}
       },
-      {"id": "manual", "kind": "task", "hooks": {"run": "demo.flows.fraud.manual_review"}},
-      {"id": "approve", "kind": "task", "hooks": {"run": "demo.flows.fraud.auto_approve"}},
+      {"id": "manual", "kind": "task", "hooks": {"run": "tm.examples.recipes.manual_review"}},
+      {"id": "approve", "kind": "task", "hooks": {"run": "tm.examples.recipes.auto_approve"}},
       {"id": "complete", "kind": "finish"}
     ],
     "edges": [
@@ -197,16 +197,16 @@ Violations should raise a descriptive error before the flow/policy is registered
     "tags": ["parallel", "patch"],
     "entry": "ingest",
     "steps": [
-      {"id": "ingest", "kind": "task", "hooks": {"run": "demo.flows.docs.ingest"}},
+      {"id": "ingest", "kind": "task", "hooks": {"run": "tm.examples.recipes.ingest"}},
       {
         "id": "fanout",
         "kind": "parallel",
         "config": {"branches": ["extract_text", "classify"], "mode": "all"},
-        "hooks": {"run": "demo.flows.docs.run_parallel"}
+        "hooks": {"run": "tm.examples.recipes.run_parallel"}
       },
-      {"id": "extract_text", "kind": "task", "hooks": {"run": "demo.flows.docs.extract_text"}},
-      {"id": "classify", "kind": "task", "hooks": {"run": "demo.flows.docs.classify"}},
-      {"id": "patch", "kind": "task", "hooks": {"run": "demo.flows.docs.patch_payload"}},
+      {"id": "extract_text", "kind": "task", "hooks": {"run": "tm.examples.recipes.extract_text"}},
+      {"id": "classify", "kind": "task", "hooks": {"run": "tm.examples.recipes.classify"}},
+      {"id": "patch", "kind": "task", "hooks": {"run": "tm.examples.recipes.patch_payload"}},
       {"id": "finish", "kind": "finish"}
     ],
     "edges": [
@@ -248,6 +248,83 @@ Violations should raise a descriptive error before the flow/policy is registered
   }
 }
 ```
+
+## 5. Running Recipes
+
+1. Place one of the flow examples above into a file such as `flows/checkout-linear.yaml`. Converting the JSON block to YAML is optional—the loader accepts both. Example YAML:
+
+   ```yaml
+   flow:
+     id: checkout-linear
+     version: "1.0.0"
+     entry: prepare
+     steps:
+   - id: prepare
+     kind: task
+     hooks:
+        run: tm.examples.recipes.prepare
+    - id: charge
+      kind: task
+      hooks:
+        run: tm.examples.recipes.charge
+       - id: done
+         kind: finish
+     edges:
+       - {from: prepare, to: charge}
+       - {from: charge, to: done}
+   ```
+
+2. Execute the recipe with the helper API:
+
+   ```python
+   from tm.run_recipe import run_recipe
+
+   result = run_recipe("flows/checkout-linear.yaml", {"payload": {"order_id": "123"}})
+   print(result)
+   ```
+
+   The response follows `{"status", "run_id", "output", "exec_ms"}`. A successful run returns `status="ok"`; invalid recipes (for example, missing hooks) surface `status="error"` with the validation message.
+
+3. Policies can be loaded via `PolicyLoader` and applied to a `BanditTuner`:
+
+   ```python
+   from tm.ai.policy_registry import PolicyLoader, apply_policy
+   from tm.ai.tuner import BanditTuner
+
+   loader = PolicyLoader()
+   loader.load("policies/epsilon-demo.json")
+   tuner = BanditTuner()
+   await apply_policy(tuner, "epsilon-demo")
+   ```
+
+## 6. Overlay Validation Workflow
+
+TraceMind ships an overlay checker that compares runtime traces against exported flow artifacts:
+
+1. Ensure your FlowRuntime is initialized via `tm.app.wiring_flows`. This automatically exports per-revision artifacts under `artifacts/flows/<flow_id>@<flow_rev>.{json,dot}`.
+2. After running a few requests, invoke the checker:
+
+   ```bash
+   python scripts/trace_overlay_checker.py \
+     --trace-dir data/trace \
+     --artifacts-dir artifacts/flows \
+     --runs 10
+   ```
+
+3. A report similar to the following is printed:
+
+   ```json
+   {
+     "runs_analyzed": 10,
+     "events": 42,
+     "anomalies": [],
+     "anomaly_rate": 0.0
+   }
+   ```
+
+   Non-zero anomaly counts usually indicate a step name mismatch, a missing revision artifact, or a branch label emitted by a switch helper that is not covered by `config.cases`.
+
+With these steps you can copy any of the recipe examples, run them through the loader, and verify their trace coverage using the overlay checker.
 
 All of the flow snippets respect the schema above and can be ingested by a loader
 that enforces the validation rules. You can attach additional metadata (for
