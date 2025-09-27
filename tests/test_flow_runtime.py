@@ -1,6 +1,5 @@
 import asyncio
 
-import orjson
 import pytest
 
 from tm.flow.operations import Operation, ResponseMode
@@ -118,7 +117,9 @@ async def test_runtime_emits_trace_span(tmp_path):
 
     reader = BinaryLogReader(str(tmp_path))
     records = list(reader.scan())
-    payloads = [orjson.loads(payload) for et, payload in records if et == "FlowTrace"]
+    import json
+
+    payloads = [json.loads(payload) for et, payload in records if et == "FlowTrace"]
     assert payloads, "expected at least one trace span"
 
     event = payloads[0]
