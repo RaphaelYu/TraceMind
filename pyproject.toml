@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.20"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trace-mind"
+version = "0.2.0"
+description = "TraceMind smart agent runtime and tooling"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [
+  {name = "TraceMind Authors"}
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.optional-dependencies]
+prom = ["prometheus-client>=0.16"]
+yaml = ["PyYAML>=6.0"]
+
+[project.urls]
+Homepage = "https://github.com/trace-mind/trace-mind"
+Documentation = "https://github.com/trace-mind/trace-mind/tree/main/docs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tm"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/tm",
+  "/docs",
+  "/scripts/run_local.sh",
+  "/README.md",
+  "/LICENSE",
+  "/CHANGES.md",
+]
+
+[tool.hatch.build]
+exclude = [
+  "tests",
+  "data",
+  "artifacts",
+  "logs",
+  "housekeeping",
+  "scripts/clean.sh",
+  "scripts/perf*",
+]

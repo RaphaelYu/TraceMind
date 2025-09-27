@@ -1,0 +1,40 @@
+name: Package Check
+on:
+  push:
+    branches: [ "main", "release/**" ]
+  pull_request:
+    branches: [ "main", "release/**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -U pip build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - name: List package files
+        run: |
+          python - <<'PY'
+          import glob, tarfile, zipfile
+          with open("housekeeping/pkg-contents.txt","w") as out:
+            for w in glob.glob("dist/*.whl"):
+              z=zipfile.ZipFile(w)
+              out.write(f"== WHEEL {w} ==\n")
+              out.write("\n".join(z.namelist())+"\n")
+            for t in glob.glob("dist/*.tar.gz"):
+              out.write(f"== SDIST {t} ==\n")
+              with tarfile.open(t,"r:gz") as tar:
+                out.write("\n".join(m.name for m in tar.getmembers())+"\n")
+          print("wrote housekeeping/pkg-contents.txt")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-and-listing
+          path: |
+            dist/*
+            housekeeping/pkg-contents.txt

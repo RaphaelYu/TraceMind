@@ -4,6 +4,8 @@
 It records and reflects every transaction, supports pipeline-based field analysis, static flow export, and interactive summaries/diagnosis/plans.
 Designed with a clean DDD structure, minimal dependencies, and safe container execution.
 
+> Current release: **v0.2.0** — see [CHANGES.md](CHANGES.md) for highlights.
+
 ---
 
 Agent Evolution Timeline
@@ -88,6 +90,7 @@ Agent Evolution Timeline
 - [Flow & policy recipes](docs/recipes-v1.md)
 - [Helpers reference](docs/helpers.md)
 - [Policy lifecycle & MCP integration](docs/policy.md)
+- [Publishing guide](docs/publish.md)
 
 ---
 

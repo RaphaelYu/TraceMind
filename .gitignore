@@ -209,3 +209,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local artifacts and tooling
+artifacts/
+logs/
+
+# IDE / OS junk
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
