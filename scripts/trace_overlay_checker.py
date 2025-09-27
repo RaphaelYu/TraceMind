@@ -7,7 +7,7 @@ import argparse
 import json
 from collections import defaultdict, deque
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set
 
 from tm.storage.binlog import BinaryLogReader
 

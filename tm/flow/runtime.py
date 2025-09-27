@@ -380,6 +380,7 @@ class FlowRuntime:
                 "index": len(executed),
                 "executed": list(executed),
                 "run_id": request.run_id,
+                "config": dict(step_def.config),
             }
             caught_exc: Optional[BaseException] = None
             status = "ok"

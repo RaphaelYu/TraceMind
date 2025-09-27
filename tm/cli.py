@@ -1,9 +1,11 @@
 # tm/cli.py
-import argparse, sys
+import argparse
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from tm.app.demo_plan import build_plan
 from tm.pipeline.analysis import analyze_plan
 from tm.obs.retrospect import load_window
+from tm.scaffold import create_flow, create_policy, init_project, find_project_root
 
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
@@ -90,6 +92,48 @@ if __name__ == "__main__":
     spm_dump.add_argument("--window", default="5m", help="window size (e.g. 5m, 1h)")
     spm_dump.add_argument("--format", choices=["csv", "json"], default="csv")
     spm_dump.set_defaults(func=_cmd_metrics_dump)
+
+    init_parser = sub.add_parser("init", help="initialize a new TraceMind project")
+    init_parser.add_argument("project_name", help="project directory to create")
+    init_parser.add_argument("--with-prom", action="store_true", help="include Prometheus hook scaffold")
+    init_parser.add_argument("--with-retrospect", action="store_true", help="include Retrospect exporter scaffold")
+
+    def _cmd_init(args):
+        init_project(args.project_name, Path.cwd(), with_prom=args.with_prom, with_retrospect=args.with_retrospect)
+        print(f"Project '{args.project_name}' created")
+
+    init_parser.set_defaults(func=_cmd_init)
+
+    new_parser = sub.add_parser("new", help="generate project assets")
+    new_sub = new_parser.add_subparsers(dest="asset")
+
+    flow_parser = new_sub.add_parser("flow", help="create a flow skeleton")
+    flow_parser.add_argument("flow_name", help="flow name")
+    variant = flow_parser.add_mutually_exclusive_group()
+    variant.add_argument("--switch", action="store_true", help="include a switch step")
+    variant.add_argument("--parallel", action="store_true", help="include a parallel step")
+
+    def _cmd_new_flow(args):
+        root = find_project_root(Path.cwd())
+        create_flow(args.flow_name, project_root=root, switch=args.switch, parallel=args.parallel)
+        print(f"Flow '{args.flow_name}' created")
+
+    flow_parser.set_defaults(func=_cmd_new_flow)
+
+    policy_parser = new_sub.add_parser("policy", help="create a policy skeleton")
+    policy_parser.add_argument("policy_name", help="policy identifier")
+    strategy = policy_parser.add_mutually_exclusive_group()
+    strategy.add_argument("--epsilon", action="store_true", help="generate epsilon-greedy policy")
+    strategy.add_argument("--ucb", action="store_true", help="generate UCB policy")
+    policy_parser.add_argument("--mcp-endpoint", help="default MCP endpoint", default=None)
+
+    def _cmd_new_policy(args):
+        root = find_project_root(Path.cwd())
+        strat = "ucb" if args.ucb else "epsilon"
+        create_policy(args.policy_name, project_root=root, strategy=strat, mcp_endpoint=args.mcp_endpoint)
+        print(f"Policy '{args.policy_name}' created")
+
+    policy_parser.set_defaults(func=_cmd_new_policy)
 
     args = parser.parse_args()
     if hasattr(args, "func"):
