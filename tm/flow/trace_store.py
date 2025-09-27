@@ -6,7 +6,17 @@ import threading
 import time
 from typing import Optional
 
-import orjson
+try:  # pragma: no cover - optional dependency
+    import orjson as _orjson
+
+    def _dumps(payload: dict[str, object]) -> bytes:
+        return _orjson.dumps(payload)
+
+except ModuleNotFoundError:  # pragma: no cover - fallback
+    import json as _json
+
+    def _dumps(payload: dict[str, object]) -> bytes:
+        return _json.dumps(payload).encode("utf-8")
 
 from tm.storage.binlog import BinaryLogWriter
 
@@ -106,7 +116,7 @@ class FlowTraceSink:
     def _flush(self, batch: list[TraceSpanLike]) -> None:
         if not batch:
             return
-        records = [("FlowTrace", orjson.dumps(self._encode(span))) for span in batch]
+        records = [("FlowTrace", _dumps(self._encode(span))) for span in batch]
         self._writer.append_many(records)
 
     @staticmethod
