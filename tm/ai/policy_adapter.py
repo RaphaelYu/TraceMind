@@ -155,7 +155,7 @@ class McpPolicyAdapter(PolicyAdapter):
     ) -> PolicyDecision:
         binding_meta = self._bindings.get(binding_key)
         if not binding_meta or not _is_mcp_endpoint(binding_meta.endpoint):
-            return PolicyDecision(arms=local_candidates, remote_version=None, fallback=True)
+            return PolicyDecision(arms=list(local_candidates), remote_version=None, fallback=True)
 
         tool = _parse_tool(binding_meta.endpoint)
         try:
@@ -164,7 +164,7 @@ class McpPolicyAdapter(PolicyAdapter):
             return PolicyDecision(arms=arms, remote_version=remote_version, fallback=False)
         except Exception as exc:  # pragma: no cover - network/transport errors
             logger.warning("policy adapter fallback for %s: %s", binding_key, exc)
-            return PolicyDecision(arms=local_candidates, remote_version=None, fallback=True)
+            return PolicyDecision(arms=list(local_candidates), remote_version=None, fallback=True)
 
     async def post_run(self, record: FlowRunRecord) -> None:
         if not record.binding:

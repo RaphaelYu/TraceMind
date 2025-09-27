@@ -69,21 +69,18 @@ class FlowInspector:
         stack: Dict[str, bool] = {}
         issues: List[ValidationIssue] = []
 
-        def dfs(node: str) -> bool:
+        def dfs(node: str) -> None:
             visited[node] = True
             stack[node] = True
             for nxt in self.spec.step(node).next_steps:
                 if nxt not in self.spec.steps:
                     issues.append(ValidationIssue("dangling", f"Unknown target '{nxt}'", node))
                     continue
-                if not visited.get(nxt, False) and dfs(nxt):
-                    issues.append(ValidationIssue("cycle", f"Cycle detected via {node}->{nxt}", nxt))
-                    return True
+                if not visited.get(nxt, False):
+                    dfs(nxt)
                 elif stack.get(nxt, False):
                     issues.append(ValidationIssue("cycle", f"Cycle detected via {node}->{nxt}", nxt))
-                    return True
             stack.pop(node, None)
-            return False
 
         entry = self.spec.entrypoint
         if entry is None:
@@ -93,9 +90,7 @@ class FlowInspector:
         for step_name in self.spec.steps:
             visited.setdefault(step_name, False)
 
-        if dfs(entry):
-            # issues already recorded
-            pass
+        dfs(entry)
         return issues
 
     def _check_reachability(self) -> List[ValidationIssue]:

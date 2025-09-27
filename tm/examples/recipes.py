@@ -25,6 +25,13 @@ def route(ctx: Dict[str, Any], state: Dict[str, Any]) -> str:
     return "auto"
 
 
+def risk_route(ctx: Dict[str, Any], state: Dict[str, Any]) -> str:
+    decision = state.get("route")
+    if decision in {"manual", "auto"}:
+        return decision
+    return "auto"
+
+
 def manual_review(ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
     data = dict(state or {})
     data["manual_review"] = True

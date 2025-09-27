@@ -54,6 +54,11 @@ class BinaryLogWriter:
     def flush_fsync(self):
         self.fp.flush(); os.fsync(self.fp.fileno())
 
+    def close(self):
+        if self.fp is None: return
+        self.fp.flush(); os.fsync(self.fp.fileno()); self.fp.close()
+        self.fp = None
+
 class BinaryLogReader:
     def __init__(self, dir_path: str):
         self.dir = dir_path
@@ -66,10 +71,13 @@ class BinaryLogReader:
                 L = len(data)
                 while p + 9 <= L:  # magic(4)+ver(1)+len(varint)+crc(4)
                     if mv[p:p+4].tobytes() != MAGIC: break
+                    start = p
                     p += 4; ver = mv[p]; p += 1
+                    len_pos = p
                     blen, p = _varint_decode(mv, p)
+                    var_len = p - len_pos
                     if p + blen + 4 > L: break
-                    frame = mv[p-6 : p+blen]  # include magic+ver+len for crc window
+                    frame = mv[start : p+blen]  # include magic+ver+len for crc window
                     body = mv[p : p+blen].tobytes()
                     p += blen
                     crc = int.from_bytes(mv[p:p+4], "big"); p += 4

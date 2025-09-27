@@ -40,4 +40,3 @@ def test_retrospect_window_metrics():
     assert summary.count == 1
     assert summary.ok_rate == 1.0
     assert summary.avg_reward == 2.0
-*** End of File ***

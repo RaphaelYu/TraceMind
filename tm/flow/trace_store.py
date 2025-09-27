@@ -6,7 +6,17 @@ import threading
 import time
 from typing import Optional
 
-import orjson
+try:  # pragma: no cover - optional dependency
+    import orjson as _orjson
+
+    def _dumps(payload: dict[str, object]) -> bytes:
+        return _orjson.dumps(payload)
+
+except ModuleNotFoundError:  # pragma: no cover - fallback
+    import json as _json
+
+    def _dumps(payload: dict[str, object]) -> bytes:
+        return _json.dumps(payload).encode("utf-8")
 
 from tm.storage.binlog import BinaryLogWriter
 
@@ -47,12 +57,17 @@ class FlowTraceSink:
         self._max_batch = max(1, int(max_batch))
         self._sentinel = object()
         self._closed = threading.Event()
+        self._pending = 0
+        self._pending_lock = threading.Lock()
+        self._idle = threading.Event()
+        self._idle.set()
         self._worker = threading.Thread(target=self._run, name="FlowTraceSinkWriter", daemon=True)
         self._worker.start()
 
     def append(self, span: TraceSpanLike) -> None:
         if self._closed.is_set():  # pragma: no cover - defensive guard
             return
+        self._mark_enqueued(1)
         self._queue.put(span)
 
     def close(self, *, flush: bool = True, timeout: float | None = None) -> None:
@@ -62,10 +77,15 @@ class FlowTraceSink:
         self._queue.put(self._sentinel)
         self._worker.join(timeout)
         if flush:
+            self._idle.wait(timeout)
             try:
                 self._writer.flush_fsync()
             except Exception:  # pragma: no cover - best effort
                 pass
+        try:
+            self._writer.close()
+        except Exception:  # pragma: no cover - best effort
+            pass
 
     def _run(self) -> None:
         batch: list[TraceSpanLike] = []
@@ -106,8 +126,16 @@ class FlowTraceSink:
     def _flush(self, batch: list[TraceSpanLike]) -> None:
         if not batch:
             return
-        records = [("FlowTrace", orjson.dumps(self._encode(span))) for span in batch]
-        self._writer.append_many(records)
+        count = len(batch)
+        records = [("FlowTrace", _dumps(self._encode(span))) for span in batch]
+        try:
+            self._writer.append_many(records)
+            try:
+                self._writer.flush_fsync()
+            except Exception:  # pragma: no cover - best effort
+                pass
+        finally:
+            self._mark_flushed(count)
 
     @staticmethod
     def _encode(span: TraceSpanLike) -> dict[str, object]:
@@ -126,3 +154,18 @@ class FlowTraceSink:
             "error_code": span.error_code,
             "error_message": span.error_message,
         }
+
+    def _mark_enqueued(self, count: int) -> None:
+        if count <= 0:
+            return
+        with self._pending_lock:
+            self._pending += count
+            self._idle.clear()
+
+    def _mark_flushed(self, count: int) -> None:
+        if count <= 0:
+            return
+        with self._pending_lock:
+            self._pending = max(0, self._pending - count)
+            if self._pending == 0:
+                self._idle.set()

@@ -477,18 +477,26 @@ class FlowRuntime:
             return await result  # pragma: no cover
         return result
 
+    def _close_trace_sink(self) -> None:
+        if self._trace_sink is None:
+            return
+        close = getattr(self._trace_sink, "close", None)
+        if callable(close):
+            try:
+                close()
+            except TypeError:
+                close(flush=True)  # type: ignore[misc]
+
     async def aclose(self) -> None:
         if not self._started:
-            if self._trace_sink is not None:
-                self._trace_sink.close()
+            self._close_trace_sink()
             return
         for _ in self._workers:
             await self._queue.put(None)
         await asyncio.gather(*self._workers, return_exceptions=True)
         self._started = False
         self._workers.clear()
-        if self._trace_sink is not None:
-            self._trace_sink.close()
+        self._close_trace_sink()
 
     def get_stats(self) -> Dict[str, Any]:
         def percentile(data: list[float], pct: float) -> float:

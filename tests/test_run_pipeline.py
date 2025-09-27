@@ -41,4 +41,3 @@ async def test_run_end_pipeline_updates_components():
     stats = await tuner.stats("demo:read")
     assert stats["arm-a"]["updates"] == 1.0
     assert pytest.approx(record.reward, rel=1e-6) == expected_reward
-*** End of File ***

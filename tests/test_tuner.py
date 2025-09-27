@@ -22,4 +22,3 @@ async def test_bandit_tuner_prefers_high_reward_arm():
 
     stats = await tuner.stats(binding)
     assert stats["flow_b"]["score"] > stats["flow_a"]["score"]
-*** End of File ***

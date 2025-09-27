@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Any, Dict, Mapping, MutableMapping, Optional, Protocol, Sequence
 
@@ -71,7 +72,17 @@ class OperationRouter:
         if context:
             ctx.update(context)
 
-        self._hook.before_route(ctx)
+        before = getattr(self._hook, "before_route", None)
+        if callable(before):
+            maybe = before(ctx)
+            if inspect.isawaitable(maybe):
+                await maybe
+        else:  # pragma: no cover - defensive fallback when attribute shadowed
+            fallback_before = getattr(type(self._hook), "before_route", None)
+            if callable(fallback_before):
+                maybe = fallback_before(self._hook, ctx)
+                if inspect.isawaitable(maybe):
+                    await maybe
 
         candidates = list(_matching_flows(spec, op_enum, ctx))
         if not candidates:
@@ -135,7 +146,17 @@ class OperationRouter:
             ctx=runtime_ctx,
         )
         enriched = {"flow": flow_name, **result}
-        self._hook.after_result(enriched)
+        after = getattr(self._hook, "after_result", None)
+        if callable(after):
+            maybe = after(enriched)
+            if inspect.isawaitable(maybe):
+                await maybe
+        else:  # pragma: no cover - defensive fallback when attribute shadowed
+            fallback_after = getattr(type(self._hook), "after_result", None)
+            if callable(fallback_after):
+                maybe = fallback_after(self._hook, enriched)
+                if inspect.isawaitable(maybe):
+                    await maybe
         return enriched
 
     def _ensure_binding_registered(self, binding_key: str, spec: BindingSpec) -> None:
@@ -147,12 +168,19 @@ class OperationRouter:
 
 
 def _matching_flows(spec: BindingSpec, operation: Operation, ctx: Mapping[str, Any]) -> Sequence[str]:
-    resolved: list[str] = []
+    specific: list[str] = []
+    fallback: list[str] = []
     for rule in getattr(spec, "_rules", ()):  # type: ignore[attr-defined]
         if rule.matches(operation, ctx):
-            resolved.append(rule.flow_name)
-    if not resolved:
-        flow = spec.resolve(operation, ctx)
-        if flow is not None:
-            return [flow]
-    return resolved
+            if getattr(rule, "predicate", None) is None:
+                fallback.append(rule.flow_name)
+            else:
+                specific.append(rule.flow_name)
+    if specific:
+        return specific
+    if fallback:
+        return fallback
+    flow = spec.resolve(operation, ctx)
+    if flow is not None:
+        return [flow]
+    return []
