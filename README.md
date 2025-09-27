@@ -4,7 +4,7 @@
 It records and reflects every transaction, supports pipeline-based field analysis, static flow export, and interactive summaries/diagnosis/plans.
 Designed with a clean DDD structure, minimal dependencies, and safe container execution.
 
-> Current release: **v0.2.0** — see [CHANGES.md](CHANGES.md) for highlights.
+> Current release: **v0.2.1** — see [CHANGES.md](CHANGES.md) for highlights.
 
 ---
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0
+## v0.2.1
 
 ### Features
 - Added recipe loader and runtime helpers so recipes can run end-to-end from the CLI.
