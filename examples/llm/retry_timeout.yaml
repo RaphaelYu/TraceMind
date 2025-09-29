@@ -1,0 +1,9 @@
+steps:
+  - id: t1
+    type: ai.llm_call
+    with:
+      provider: fake
+      model: fake-mini
+      prompt: ping
+      timeout_ms: 1
+      max_retries: 1
