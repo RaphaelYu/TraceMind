@@ -1,0 +1,21 @@
+site_name: TraceMind Docs
+site_description: Developer & operator docs for TraceMind
+theme:
+  name: readthedocs
+nav:
+  - Overview: docs/overview.md
+  - Quick Start:
+    - LLM Call (FakeProvider): docs/recipes/llm/hello_fake.md
+    - Policy Adapter (MCP): docs/recipes/policy/policy_adapter.md
+  - How-to Guides:
+    - LLM Call Step: docs/howto/llm_call.md
+    - Policy Adapter: docs/howto/policy_adapter.md
+  - Architecture:
+    - Runtime Overview: docs/architecture/runtime_overview.md
+    - ADR-001 LLM Client: docs/architecture/adr-001-llm-client.md
+  - Reference:
+    - Error Codes: docs/reference/errors.md
+    - Step Types: docs/reference/steps.md
+    - Config: docs/reference/config.md
+  - Contributing: docs/CONTRIBUTING.md
+  - Changelog: docs/CHANGELOG.md

@@ -1,8 +1,7 @@
-# MCP Policy Adapter (T-POLICY-02)
+# Recipe: Policy Adapter (MCP with fallback)
 
-This adapter fetches/updates policy parameters via MCP (JSON-RPC 2.0) with non-blocking IO and graceful fallback to a local store.
+Local-only (fallback) quick start:
 
-## Quick start (local-only fallback)
 ```python
 import asyncio
 from tm.policy.adapter import PolicyAdapter
@@ -17,15 +16,12 @@ async def main():
 asyncio.run(main())
 ```
 
-## With a dummy in-process MCP transport
+Fake MCP transport:
+
 ```python
-import asyncio
-from tm.policy.adapter import PolicyAdapter
-from tm.policy.local_store import LocalPolicyStore
 from tm.policy.mcp_client import MCPClient
 from tm.policy.transports import InProcessTransport
 
-# Fake MCP server
 def handler(req):
     if req.get("method") == "policy.get":
         return {"jsonrpc": "2.0", "id": req["id"], "result": {"alpha": 0.3}}
@@ -34,13 +30,4 @@ def handler(req):
     if req.get("method") == "policy.list_arms":
         return {"jsonrpc": "2.0", "id": req["id"], "result": ["arm_A", "arm_B"]}
     return {"jsonrpc": "2.0", "id": req["id"], "error": {"code": -32601, "message": "Method not found"}}
-
-async def main():
-    client = MCPClient(InProcessTransport(handler))
-    adapter = PolicyAdapter(mcp=client, local=LocalPolicyStore(), timeout_s=2.0, prefer_remote=True)
-    print(await adapter.get("arm_A"))      # -> from MCP
-    print(await adapter.update("arm_X", {"beta": 42}))  # -> MCP update
-    print(await adapter.list_arms())       # -> MCP list
-
-asyncio.run(main())
 ```
