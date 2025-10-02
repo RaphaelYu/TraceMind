@@ -56,3 +56,46 @@ class Recorder:
             return
         labels = {"flow": binding, "arm": arm}
         self._registry.get_gauge("tm_tuner_reward_sum").inc(value=float(reward), labels=labels)
+
+    # Planner events ----------------------------------------------------
+    def on_plan_result(
+        self,
+        *,
+        provider: str,
+        model: str,
+        duration_ms: float,
+        steps: int,
+        retries: int,
+        tokens_in: int | float | None,
+        tokens_out: int | float | None,
+        cost_usd: float | None,
+        status: str,
+    ) -> None:
+        labels = {
+            "provider": provider or "unknown",
+            "model": model or "unknown",
+        }
+        self._registry.get_counter("tm_plan_requests_total").inc(labels=labels)
+        if status != "ok":
+            self._registry.get_counter("tm_plan_failures_total").inc(labels=labels)
+        self._registry.get_counter("tm_plan_steps_executed_total").inc(value=float(max(0, steps)), labels=labels)
+        if retries:
+            self._registry.get_counter("tm_plan_retries_total").inc(value=float(retries), labels=labels)
+        self._registry.get_gauge("tm_plan_last_duration_ms").set(float(max(0.0, duration_ms)), labels=labels)
+
+    def on_reflect_result(
+        self,
+        *,
+        provider: str,
+        model: str,
+        duration_ms: float,
+        status: str,
+    ) -> None:
+        labels = {
+            "provider": provider or "unknown",
+            "model": model or "unknown",
+        }
+        self._registry.get_counter("tm_reflect_requests_total").inc(labels=labels)
+        if status != "ok":
+            self._registry.get_counter("tm_reflect_failures_total").inc(labels=labels)
+        self._registry.get_gauge("tm_reflect_last_duration_ms").set(float(max(0.0, duration_ms)), labels=labels)

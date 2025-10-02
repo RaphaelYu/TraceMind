@@ -247,6 +247,35 @@ def json_merge_patch(target: Any, patch: Mapping[str, Any]) -> Any:
     return result
 
 
+def plan_has_patch(ctx: Mapping[str, Any], state: Mapping[str, Any]) -> bool:
+    if isinstance(state, Mapping):
+        candidate = state.get("plan_patch") or state.get("reflection", {}).get("plan_patch")
+        if candidate:
+            return True
+    if isinstance(ctx, Mapping):
+        paths = [
+            ctx.get("plan", {}).get("plan_patch"),
+            ctx.get("reflect", {}).get("reflection", {}).get("plan_patch"),
+        ]
+        return any(bool(p) for p in paths)
+    return False
+
+
+def apply_patch(document: Any, patch: Mapping[str, Any] | Sequence[Mapping[str, Any]] | None) -> Any:
+    if not patch:
+        return deepcopy(document)
+    ops: Sequence[Mapping[str, Any]]
+    if isinstance(patch, Mapping):
+        ops = patch.get("ops")  # type: ignore[assignment]
+        if not isinstance(ops, Sequence):
+            raise ValueError("plan_patch.ops must be a sequence")
+    elif isinstance(patch, Sequence):
+        ops = patch
+    else:
+        raise ValueError("patch must be a mapping or sequence")
+    return json_patch_apply(document, ops)
+
+
 __all__ = [
     "switch",
     "when",
@@ -258,4 +287,6 @@ __all__ = [
     "json_patch_diff",
     "json_patch_apply",
     "json_merge_patch",
+    "plan_has_patch",
+    "apply_patch",
 ]

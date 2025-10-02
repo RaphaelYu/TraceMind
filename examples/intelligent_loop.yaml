@@ -1,0 +1,56 @@
+id: intelligent_loop
+steps:
+  - id: memory_init
+    type: helpers.memory_set
+    session_id: "${ctx.session_id}"
+    key: original_input
+    value: "${ctx.payload}"
+
+  - id: plan
+    type: ai.plan
+    provider: fake
+    model: planner
+    goal: "Sort and deduplicate an array and write a short summary"
+    allow:
+      tools: ["tool.sort", "tool.unique", "tool.summarize"]
+      flows: []
+    constraints:
+      max_steps: 5
+      budget_usd: 0.02
+    retries: 1
+    retry_backoff_ms: 50
+
+  - id: execute
+    type: ai.execute_plan
+    runtime: "${helpers.runtime}"
+    plan: "${ctx.plan.plan}"
+    stop_on_error: true
+
+  - id: reflect
+    type: ai.reflect
+    provider: fake
+    model: reflector
+    recent_outcomes: "${ctx.execute.steps}"
+    last_error: "${ctx.execute.error}"
+    retrospect_stats: "${ctx.meta.retrospect}"
+    plan: "${ctx.plan.plan}"
+    retries: 1
+    retry_backoff_ms: 50
+
+  - id: maybe_rerun
+    type: helpers.when
+    predicate: "trace_mind.helpers:plan_has_patch"
+    then: rerun
+    otherwise: finalize
+
+  - id: rerun
+    type: ai.execute_plan
+    runtime: "${helpers.runtime}"
+    plan: "${helpers.apply_patch(ctx.plan.plan, ctx.reflect.reflection.plan_patch)}"
+
+  - id: finalize
+    type: helpers.patch
+    mode: merge
+    with:
+      result: "${ctx.execute.steps}"
+      reflection: "${ctx.reflect.reflection}"
