@@ -44,3 +44,42 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Offline evaluation workflow
+
+After a tuning session you can replay historical run records to compare arms without
+touching the live control loop. The helper script `scripts/offline_eval.py` accepts
+the JSONL trace emitted by `trace-mind` (or any equivalent export) and produces both
+a console table and a structured report under `reports/offline_eval.json`.
+
+```bash
+PYTHONPATH=. python scripts/offline_eval.py \
+    --from-jsonl tests/data/sample_runs.jsonl \
+    --baseline-sec 3600 \
+    --recent-sec 600 \
+    --binding demo:read
+```
+
+Key columns:
+
+- `n`: number of runs inside the window (`--recent-sec` by default).
+- `ok_rate`: share of successful runs.
+- `latency_ms` / `cost_usd`: arithmetic averages in the window.
+- `reward`: averaged reward using the configured weights (defaults from `trace-mind.toml`).
+- `Δreward`: difference between the recent window and the baseline window (`--baseline-sec`).
+
+The JSON artefact mirrors the same metrics so CI/CD jobs can diff or visualise them:
+
+```json
+{
+  "params": {"baseline_sec": 3600.0, "recent_sec": 600.0, "binding_filter": "demo:read"},
+  "bindings": {
+    "demo:read": {
+      "flow_fast": {"recent": {...}, "baseline": {...}, "delta": {...}},
+      "flow_slow": {"recent": {...}, "baseline": {...}, "delta": {...}}
+    }
+  }
+}
+```
+
+Use the reward deltas to spot which arms improved (positive) or regressed (negative).

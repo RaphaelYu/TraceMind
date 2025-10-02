@@ -29,7 +29,7 @@ async def test_policy_loader_registers_and_biases_tuner():
     assert definition.policy_id == "demo:read"
     assert list(definition.arms or []) == ["flow_a", "flow_b"]
 
-    tuner = BanditTuner(alpha=0.3, exploration_bonus=0.0)
+    tuner = BanditTuner(strategy="epsilon", epsilon=0.3)
     await apply_policy(tuner, definition.policy_id)
 
     counts = {"flow_a": 0, "flow_b": 0}

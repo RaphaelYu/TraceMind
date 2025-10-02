@@ -14,7 +14,8 @@ from tm.flow.policies import FlowPolicies
 from tm.flow.trace_store import FlowTraceSink
 from tm.flow.artifacts import export_flow_artifact
 from tm.ai.retrospect import Retrospect
-from tm.ai.run_pipeline import RewardWeights, RunEndPipeline
+from tm.ai.reward_config import load_reward_weights
+from tm.ai.run_pipeline import RunEndPipeline
 from tm.ai.tuner import BanditTuner
 from tm.ai.policy_adapter import AsyncMcpClient, McpPolicyAdapter
 from tm.io.http2_app import cfg
@@ -65,7 +66,13 @@ if cfg.policy_mcp_url:
         _tuner,
         AsyncMcpClient(base_url=cfg.policy_mcp_url, timeout=2.0, retries=2, backoff=0.25),
     )
-_run_pipeline = RunEndPipeline(_retrospect, _tuner, weights=RewardWeights(), policy_adapter=_policy_adapter)
+_reward_weights = load_reward_weights()
+_run_pipeline = RunEndPipeline(
+    _retrospect,
+    _tuner,
+    weights=_reward_weights,
+    policy_adapter=_policy_adapter,
+)
 _runtime = FlowRuntime(
     flows=_flows,
     trace_sink=_trace_sink,

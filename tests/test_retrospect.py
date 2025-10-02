@@ -26,17 +26,38 @@ def _record(binding: str, *, status: str, reward: float, end_ts: float, latency:
 
 def test_retrospect_window_metrics():
     retro = Retrospect(window_seconds=10.0)
-    retro.ingest(_record("demo:read", status="ok", reward=1.0, end_ts=5.0, latency=20.0))
-    retro.ingest(_record("demo:read", status="error", reward=-1.0, end_ts=6.0, latency=30.0))
-    summary = retro.summary("demo:read")["demo:read"]
-    assert summary.count == 2
+    first = _record("demo:read", status="ok", reward=1.0, end_ts=5.0, latency=20.0)
+    second = _record("demo:read", status="error", reward=-1.0, end_ts=6.0, latency=30.0)
+    retro.ingest(first, first.reward)
+    retro.ingest(second, second.reward)
+    summary = retro.aggregates(10.0, "demo:read")["demo:read"]
+    assert summary.n == 2
     assert summary.ok_rate == 0.5
     assert summary.avg_reward == 0.0
     assert summary.avg_latency_ms == 25.0
 
     # Record outside the window should be dropped
-    retro.ingest(_record("demo:read", status="ok", reward=2.0, end_ts=20.0, latency=40.0))
+    third = _record("demo:read", status="ok", reward=2.0, end_ts=20.0, latency=40.0)
+    retro.ingest(third, third.reward)
     summary = retro.summary("demo:read")["demo:read"]
-    assert summary.count == 1
+    assert summary.n == 1
     assert summary.ok_rate == 1.0
     assert summary.avg_reward == 2.0
+
+
+def test_retrospect_compare_windows():
+    retro = Retrospect(window_seconds=60.0)
+    baseline_records = [
+        _record("demo:read", status="ok", reward=0.5, end_ts=10.0, latency=30.0),
+        _record("demo:read", status="error", reward=-0.2, end_ts=20.0, latency=45.0),
+    ]
+    recent_records = [
+        _record("demo:read", status="ok", reward=0.8, end_ts=55.0, latency=25.0),
+        _record("demo:read", status="ok", reward=1.0, end_ts=58.0, latency=22.0),
+    ]
+    for rec in baseline_records + recent_records:
+        retro.ingest(rec, rec.reward)
+
+    deltas = retro.compare(40.0, 5.0, binding="demo:read")["demo:read"]
+    assert deltas["ok_rate"] > 0.0
+    assert deltas["avg_reward"] > 0.0

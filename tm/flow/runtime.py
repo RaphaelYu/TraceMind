@@ -629,6 +629,7 @@ class FlowRuntime:
             "operation": _extract_operation(request.ctx),
             "error_code": error_code,
             "error_message": error_message,
+            "policy_arm": selected_flow,
         }
         if isinstance(request.inputs, Mapping):
             meta["inputs_size"] = len(request.inputs)

@@ -43,3 +43,16 @@ class Recorder:
     # Pipeline events -------------------------------------------------
     def on_pipeline_step(self, rule: str, step: str, status: str) -> None:
         self._registry.get_counter("pipeline_steps_total").inc(labels={"rule": rule, "step": step, "status": status})
+
+    # Policy/tuner events ----------------------------------------------
+    def on_tuner_select(self, binding: str, arm: str) -> None:
+        if not binding or not arm:
+            return
+        labels = {"flow": binding, "arm": arm}
+        self._registry.get_counter("tm_tuner_select_total").inc(labels=labels)
+
+    def on_tuner_reward(self, binding: str, arm: str, reward: float) -> None:
+        if not binding or not arm:
+            return
+        labels = {"flow": binding, "arm": arm}
+        self._registry.get_gauge("tm_tuner_reward_sum").inc(value=float(reward), labels=labels)

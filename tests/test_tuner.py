@@ -1,24 +1,46 @@
+import random
+
 import pytest
 
-from tm.ai.tuner import BanditTuner
+from tm.ai.tuner import BanditTuner, EpsilonGreedy, UCB1
+
+
+def _simulate(strategy, *, rounds: int = 400) -> dict[str, int]:
+    means = {"arm_a": 0.2, "arm_b": 0.8}
+    counts = {"arm_a": 0, "arm_b": 0}
+    arms = {"arm_a": {}, "arm_b": {}}
+    random.seed(42)
+    for _ in range(rounds):
+        choice = strategy.select("flow", "policy", arms)
+        counts[choice] += 1
+        reward = random.gauss(means[choice], 0.1)
+        strategy.update("flow", "policy", choice, reward)
+    return counts
+
+
+def test_epsilon_greedy_prefers_better_arm():
+    strategy = EpsilonGreedy(epsilon=0.1, seed=7)
+    counts = _simulate(strategy)
+    assert counts["arm_b"] > counts["arm_a"]
+
+
+def test_ucb1_prefers_better_arm():
+    strategy = UCB1(c=0.8)
+    counts = _simulate(strategy)
+    assert counts["arm_b"] > counts["arm_a"]
 
 
 @pytest.mark.asyncio
-async def test_bandit_tuner_prefers_high_reward_arm():
-    tuner = BanditTuner(alpha=0.5, exploration_bonus=0.0)
+async def test_bandit_tuner_async_wrapper_tracks_stats():
+    tuner = BanditTuner(strategy_factory=lambda: EpsilonGreedy(epsilon=0.2, seed=11))
     binding = "demo:read"
-    candidates = ["flow_a", "flow_b"]
+    candidates = ["arm_a", "arm_b"]
 
-    first = await tuner.choose(binding, candidates)
-    second = await tuner.choose(binding, candidates)
-    assert {first, second} == set(candidates)
-
-    await tuner.update(binding, "flow_a", -1.0)
-    await tuner.update(binding, "flow_b", 1.0)
-    await tuner.update(binding, "flow_b", 1.0)
-
-    choices = [await tuner.choose(binding, candidates) for _ in range(6)]
-    assert choices.count("flow_b") > choices.count("flow_a")
+    for _ in range(50):
+        choice = await tuner.choose(binding, candidates)
+        reward = 1.0 if choice == "arm_b" else 0.0
+        await tuner.update(binding, choice, reward)
 
     stats = await tuner.stats(binding)
-    assert stats["flow_b"]["score"] > stats["flow_a"]["score"]
+    assert stats["arm_b"]["pulls"] > 0
+    assert stats["arm_b"]["avg_reward"] >= stats["arm_a"]["avg_reward"]

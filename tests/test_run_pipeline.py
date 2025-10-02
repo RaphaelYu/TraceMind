@@ -1,5 +1,6 @@
 import pytest
 
+from tm.ai.feedback import FeedbackEvent, reward
 from tm.ai.retrospect import Retrospect
 from tm.ai.run_pipeline import RewardWeights, RunEndPipeline
 from tm.ai.tuner import BanditTuner
@@ -9,8 +10,9 @@ from tm.flow.runtime import FlowRunRecord
 @pytest.mark.asyncio
 async def test_run_end_pipeline_updates_components():
     retro = Retrospect(window_seconds=30.0)
-    tuner = BanditTuner(alpha=0.5, exploration_bonus=0.0)
-    pipeline = RunEndPipeline(retro, tuner, weights=RewardWeights(success=1.0, user_rating=0.5))
+    tuner = BanditTuner(strategy="epsilon", epsilon=0.5)
+    weights = RewardWeights(outcome_ok=0.8, user_rating=0.5, latency_ms=0.0, cost_usd=0.0, task_success=0.0)
+    pipeline = RunEndPipeline(retro, tuner, weights=weights)
 
     record = FlowRunRecord(
         flow="demo-flow",
@@ -35,9 +37,17 @@ async def test_run_end_pipeline_updates_components():
     await pipeline.on_run_end(record)
 
     summary = retro.summary("demo:read")["demo:read"]
-    assert summary.count == 1
-    expected_reward = 1.0 + 0.5 * 0.8
-    assert pytest.approx(summary.avg_reward, rel=1e-6) == expected_reward
+    assert summary.n == 1
+    expected = reward(
+        FeedbackEvent(
+            outcome="ok",
+            duration_ms=record.duration_ms,
+            cost_usd=record.cost_usd,
+            user_rating=record.user_rating,
+        ),
+        weights,
+    )
+    assert pytest.approx(summary.avg_reward, rel=1e-6) == expected
     stats = await tuner.stats("demo:read")
-    assert stats["arm-a"]["updates"] == 1.0
-    assert pytest.approx(record.reward, rel=1e-6) == expected_reward
+    assert stats["arm-a"]["pulls"] == 1
+    assert pytest.approx(record.reward, rel=1e-6) == expected
