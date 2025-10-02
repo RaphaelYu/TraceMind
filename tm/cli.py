@@ -10,6 +10,9 @@ from tm.pipeline.analysis import analyze_plan
 from tm.obs.retrospect import load_window
 from tm.scaffold import create_flow, create_policy, init_project, find_project_root
 from tm.run_recipe import run_recipe
+from tm.governance.audit import AuditTrail
+from tm.governance.config import load_governance_config
+from tm.governance.hitl import HitlManager
 
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
@@ -48,6 +51,14 @@ def _cmd_pipeline_export_dot(args):
         f.write(rep.dot_step_deps)
     print("DOT files written:",
           args.out_rules_steps, "and", args.out_step_deps)
+
+
+def _build_hitl_manager(config_path: str) -> HitlManager:
+    cfg = load_governance_config(config_path)
+    hitl_cfg = cfg.hitl
+    if not hitl_cfg.enabled:
+        raise RuntimeError("HITL approvals are disabled in configuration")
+    return HitlManager(hitl_cfg, audit=AuditTrail(cfg.audit))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TraceMind CLI")
@@ -94,6 +105,68 @@ if __name__ == "__main__":
     spm_dump.add_argument("--window", default="5m", help="window size (e.g. 5m, 1h)")
     spm_dump.add_argument("--format", choices=["csv", "json"], default="csv")
     spm_dump.set_defaults(func=_cmd_metrics_dump)
+
+    approve_parser = sub.add_parser("approve", help="manage human approvals")
+    approve_parser.add_argument("--config", default="trace-mind.toml", help="governance config path")
+    approve_parser.add_argument("--list", action="store_true", help="list pending approvals")
+    approve_parser.add_argument("approval_id", nargs="?", help="approval identifier")
+    approve_parser.add_argument("--decision", choices=["approve", "deny"], help="decision to apply")
+    approve_parser.add_argument("--actor", default="cli", help="actor identifier")
+    approve_parser.add_argument("--note", help="optional note")
+
+    def _cmd_approve(args):
+        try:
+            manager = _build_hitl_manager(args.config)
+        except Exception as exc:  # pragma: no cover - CLI error path
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+
+        if args.list:
+            records = manager.pending()
+            if not records:
+                print("(no pending approvals)")
+                return
+            for record in records:
+                print(json.dumps(
+                    {
+                        "approval_id": record.approval_id,
+                        "flow": record.flow,
+                        "step": record.step,
+                        "reason": record.reason,
+                        "actors": list(record.actors),
+                        "created_at": record.created_at,
+                        "ttl_ms": record.ttl_ms,
+                    },
+                    ensure_ascii=False,
+                ))
+            return
+
+        if not args.approval_id or not args.decision:
+            print("approval_id and --decision are required unless using --list", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            record = manager.decide(
+                args.approval_id,
+                decision=args.decision,
+                actor=args.actor or "cli",
+                note=args.note,
+            )
+        except Exception as exc:  # pragma: no cover - CLI error path
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(json.dumps(
+                {
+                    "approval_id": record.approval_id,
+                    "decision": record.status,
+                    "actor": record.decided_by,
+                    "note": record.note,
+                },
+                ensure_ascii=False,
+            ))
+
+    approve_parser.set_defaults(func=_cmd_approve)
 
     init_parser = sub.add_parser("init", help="initialize a new TraceMind project")
     init_parser.add_argument("project_name", help="project directory to create")

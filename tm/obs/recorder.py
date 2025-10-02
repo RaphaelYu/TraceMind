@@ -32,6 +32,10 @@ class Recorder:
             labels["model"] = model
         self._registry.get_counter("flows_finished_total").inc(labels=labels)
 
+    def on_guard_block(self, rule: str, flow: str) -> None:
+        labels = {"rule": rule, "flow": flow}
+        self._registry.get_counter("tm_audit_guard_blocked_total").inc(labels=labels)
+
     def on_flow_pending(self, delta: int) -> None:
         gauge = self._registry.get_gauge("flows_deferred_pending")
         gauge.inc(value=float(delta))

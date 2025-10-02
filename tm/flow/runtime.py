@@ -6,9 +6,13 @@ import inspect
 import logging
 import time
 import uuid
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence, Tuple
+
+from tm.governance import GovernanceDecision, GovernanceManager, RequestDescriptor
+from tm.governance.hitl import PendingApproval
+from tm.guard import GuardBlockedError
 
 from .correlate import CorrelationHub
 from .flow import Flow
@@ -35,6 +39,8 @@ class _Request:
     model_name: Optional[str]
     future: asyncio.Future
     enqueue_ts: float
+    governance_decision: Optional[GovernanceDecision] = None
+    governance_descriptor: Optional[RequestDescriptor] = None
 
 
 @dataclass
@@ -76,11 +82,13 @@ class FlowRuntime:
         idempotency_ttl_sec: float = 30.0,
         idempotency_cache_size: int = 1024,
         run_listeners: Sequence[Callable[[FlowRunRecord], Awaitable[None] | None]] | None = None,
+        governance: GovernanceManager | None = None,
     ) -> None:
         self._flows: Dict[str, Flow] = dict(flows or {})
         self._policies = policies or FlowPolicies()
         self._correlator = correlator or CorrelationHub()
         self._trace_sink = trace_sink
+        self._governance = governance or GovernanceManager()
         self._recorder = Recorder.default()
         self._run_end_callbacks: list[Callable[[FlowRunRecord], Awaitable[None] | None]] = list(run_listeners or [])
 
@@ -98,7 +106,7 @@ class FlowRuntime:
             "queue_depth_current": 0,
             "active_peak": 0,
             "rejected": 0,
-            "rejected_reason": {"QUEUE_FULL": 0, "QUEUE_TIMEOUT": 0},
+            "rejected_reason": defaultdict(int, {"QUEUE_FULL": 0, "QUEUE_TIMEOUT": 0}),
             "queued_ms": [],
             "exec_ms": [],
             "success": 0,
@@ -184,11 +192,75 @@ class FlowRuntime:
             self._inflight[idem_key] = future
             request.ctx["idempotency_key"] = idem_key
 
+        descriptor = _build_request_descriptor(request)
+
+        if self._governance is not None:
+            guard_decision = self._governance.evaluate_guard(request.inputs, descriptor)
+            if not guard_decision.allowed:
+                self._stats["rejected"] += 1
+                reason = "GUARD_BLOCKED"
+                reasons = self._stats["rejected_reason"]
+                reasons[reason] += 1
+                first = guard_decision.first
+                if first:
+                    self._recorder.on_guard_block(first.rule, spec.name)
+                self._recorder.on_flow_finished(spec.name, request.model_name, "rejected")
+                if idem_key:
+                    self._inflight.pop(idem_key, None)
+                meta = first.as_dict() if first else {"reason": "blocked"}
+                meta.setdefault("scope", descriptor.flow)
+                response = {
+                    "status": "error",
+                    "run_id": run_id,
+                    "queued_ms": 0.0,
+                    "exec_ms": 0.0,
+                    "output": {"meta": meta},
+                    "error_code": "GUARD_BLOCKED",
+                    "error_message": "request blocked by guard",
+                    "flow": spec.name,
+                    "flow_name": spec.name,
+                    "flow_id": spec.flow_id,
+                    "flow_rev": spec.flow_revision(),
+                }
+                return response
+
+        if self._governance is not None:
+            decision = self._governance.check(descriptor)
+            if not decision.allowed:
+                self._stats["rejected"] += 1
+                reason = decision.error_code or "GOVERNANCE_REJECTED"
+                reasons = self._stats["rejected_reason"]
+                reasons[reason] += 1
+                self._recorder.on_flow_finished(spec.name, request.model_name, "rejected")
+                if idem_key:
+                    self._inflight.pop(idem_key, None)
+                meta = dict(decision.meta)
+                if decision.scope:
+                    meta.setdefault("scope", decision.scope)
+                response = {
+                    "status": "rejected",
+                    "run_id": run_id,
+                    "queued_ms": 0.0,
+                    "exec_ms": 0.0,
+                    "output": {"meta": meta},
+                    "error_code": decision.error_code,
+                    "error_message": "request rejected by governance",
+                    "flow": spec.name,
+                    "flow_name": spec.name,
+                    "flow_id": spec.flow_id,
+                    "flow_rev": spec.flow_revision(),
+                }
+                return response
+            request.governance_decision = decision
+            request.governance_descriptor = descriptor
+
         accepted = await self._enqueue(request)
         if accepted != "OK":
             self._stats["rejected"] += 1
             self._stats["rejected_reason"][accepted] += 1
             self._recorder.on_flow_finished(spec.name, model_name, "rejected")
+            if request.governance_decision is not None:
+                self._governance.cancel(request.governance_decision)
             if idem_key:
                 self._inflight.pop(idem_key, None)
             return {
@@ -256,11 +328,47 @@ class FlowRuntime:
             output: Dict[str, Any] = {}
 
             self._recorder.on_flow_started(request.spec.name, request.model_name)
+            if request.governance_decision is not None:
+                self._governance.activate(request.governance_decision)
 
             run_start_ts = time.time()
             exec_start = time.perf_counter()
             try:
                 output = await self._run_flow(request)
+            except PendingApproval as pending:
+                status = "pending"
+                error_code = "APPROVAL_REQUIRED"
+                error_message = pending.record.reason
+                output = pending.payload()
+                self._recorder.on_flow_finished(request.spec.name, request.model_name, "pending")
+                if self._governance.audit.enabled:
+                    self._governance.audit.record(
+                        "hitl_pending",
+                        {
+                            "flow": request.flow_name,
+                            "approval_id": pending.record.approval_id,
+                            "reason": pending.record.reason,
+                        },
+                    )
+            except GuardBlockedError as exc:
+                status = "error"
+                error_code = "GUARD_BLOCKED"
+                error_message = exc.violation.reason
+                output = {
+                    "status": "error",
+                    "violation": exc.violation.as_dict(),
+                }
+                self._recorder.on_guard_block(exc.violation.rule, request.flow_name)
+                self._recorder.on_flow_finished(request.spec.name, request.model_name, "error")
+                if self._governance.audit.enabled:
+                    self._governance.audit.record(
+                        "guard_block",
+                        {
+                            "flow": request.flow_name,
+                            "rule": exc.violation.rule,
+                            "reason": exc.violation.reason,
+                        },
+                    )
             except Exception as exc:
                 status = "error"
                 error_code = exc.__class__.__name__
@@ -291,6 +399,17 @@ class FlowRuntime:
                 "flow_rev": request.flow_rev,
                 "flow_name": request.flow_name,
             }
+
+            tokens_used, cost_used = _extract_usage(output)
+            if request.governance_decision is not None and request.governance_descriptor is not None:
+                self._governance.finalize(
+                    request.governance_decision,
+                    request.governance_descriptor,
+                    status=status,
+                    error_code=error_code,
+                    tokens=tokens_used,
+                    cost=cost_used,
+                )
 
             idem_key = request.ctx.get("idempotency_key")
             if isinstance(idem_key, str):
@@ -381,6 +500,7 @@ class FlowRuntime:
                 "executed": list(executed),
                 "run_id": request.run_id,
                 "config": dict(step_def.config),
+                "governance": self._governance,
             }
             caught_exc: Optional[BaseException] = None
             status = "ok"
@@ -697,3 +817,52 @@ def _extract_operation(ctx: Any) -> Optional[str]:
         if hasattr(op, "value"):
             return getattr(op, "value")
     return None
+
+
+def _build_request_descriptor(request: _Request) -> RequestDescriptor:
+    binding = _extract_binding(request.ctx)
+    policy_arm = _extract_selected_flow(request) if binding else None
+    return RequestDescriptor(flow=request.flow_name, binding=binding, policy_arm=policy_arm)
+
+
+def _extract_usage(source: Any) -> Tuple[Optional[float], Optional[float]]:
+    if not isinstance(source, Mapping):
+        return None, None
+    tokens, cost = _extract_usage_from_mapping(source)
+    if tokens is None or cost is None:
+        state = source.get("state")
+        if isinstance(state, Mapping):
+            state_tokens, state_cost = _extract_usage_from_mapping(state)
+            tokens = tokens if tokens is not None else state_tokens
+            cost = cost if cost is not None else state_cost
+    return tokens, cost
+
+
+def _extract_usage_from_mapping(mapping: Mapping[str, Any]) -> Tuple[Optional[float], Optional[float]]:
+    tokens = _coerce_float(mapping.get("total_tokens") or mapping.get("tokens"))
+    cost = _coerce_float(mapping.get("cost_usd") or mapping.get("usd_cost"))
+
+    usage = mapping.get("usage")
+    if isinstance(usage, Mapping):
+        total = _coerce_float(usage.get("total_tokens"))
+        if total is None:
+            prompt = _coerce_float(usage.get("prompt_tokens"))
+            completion = _coerce_float(usage.get("completion_tokens"))
+            if prompt is not None or completion is not None:
+                total = (prompt or 0.0) + (completion or 0.0)
+        if total is not None:
+            tokens = total if tokens is None else tokens
+        cost_value = _coerce_float(usage.get("cost_usd") or usage.get("usd"))
+        if cost_value is not None:
+            cost = cost if cost is not None else cost_value
+
+    return tokens, cost
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

@@ -89,6 +89,12 @@ Agent Evolution Timeline
 - [Helpers reference](docs/helpers.md)
 - [Policy lifecycle & MCP integration](docs/policy.md)
 
+### Safety & Governance
+
+- [Governance overview](docs/governance.md)
+- [Guardrails](docs/guard.md)
+- [Human approvals](docs/hitl.md)
+
 ---
 
 ## 🚀 Quick Start
