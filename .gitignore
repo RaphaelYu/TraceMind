@@ -58,6 +58,8 @@ venv/
 *.key
 *.tmbl
 data/
+!tests/data/
+reports/
 
 # Django stuff:
 *.log

@@ -1,0 +1,7 @@
+{"binding": "demo:read", "selected_flow": "flow_fast", "status": "ok", "outcome": "ok", "duration_ms": 45.0, "cost_usd": 0.02, "user_rating": 0.9, "end_ts": 995.0, "reward": 0.8}
+{"binding": "demo:read", "selected_flow": "flow_slow", "status": "ok", "outcome": "ok", "duration_ms": 320.0, "cost_usd": 1.2, "user_rating": 0.3, "end_ts": 990.0, "reward": 0.1}
+{"binding": "demo:read", "selected_flow": "flow_fast", "status": "ok", "outcome": "ok", "duration_ms": 48.0, "cost_usd": 0.02, "user_rating": 0.8, "end_ts": 400.0, "reward": 0.7}
+{"binding": "demo:read", "selected_flow": "flow_slow", "status": "error", "outcome": "error", "duration_ms": 500.0, "cost_usd": 1.5, "user_rating": 0.2, "end_ts": 390.0, "reward": -0.4}
+{"binding": "demo:read", "selected_flow": "flow_slow", "status": "ok", "outcome": "ok", "duration_ms": 300.0, "cost_usd": 1.0, "user_rating": 0.6, "end_ts": 650.0, "reward": 0.6}
+{"binding": "demo:read", "selected_flow": "flow_fast", "status": "ok", "outcome": "ok", "duration_ms": 60.0, "cost_usd": 0.03, "user_rating": 1.0, "end_ts": 200.0}
+{"binding": "demo:read", "selected_flow": "flow_fast", "status": "ok", "outcome": "ok", "duration_ms": 55.0, "cost_usd": 0.02, "user_rating": 0.95, "end_ts": 900.0, "reward": 0.85}
