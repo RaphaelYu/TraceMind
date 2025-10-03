@@ -76,7 +76,7 @@ bus.subscribe(_on_event)
 from tm.app.wiring_flows import router as flow_router
 from tm.app.wiring_service import router as service_router
 from tm.app.wiring_ai import router as ai_router
-from tm.obs.counters import metrics
+from tm.obs import counters
 from tm.obs.exporters.prometheus import mount_prometheus
 from tm.obs.exporters.file_exporter import maybe_enable_from_env as maybe_enable_file_exporter
 from tm.obs.exporters.binlog_exporter import maybe_enable_from_env as maybe_enable_binlog_exporter
@@ -92,7 +92,7 @@ requested = {item.strip() for item in exporters_env.split(",") if item.strip()} 
 _active_exporters = []
 
 if "prometheus" in requested:
-    mount_prometheus(app, metrics)
+    mount_prometheus(app, counters.metrics)
 if "file" in requested:
     exporter = maybe_enable_file_exporter()
     if exporter:
@@ -106,7 +106,7 @@ custom_names = requested.difference({"prometheus", "file", "binlog"})
 for name in custom_names:
     factory = get_exporter_factory(name)
     if factory:
-        exporter = factory(metrics)
+        exporter = factory(counters.metrics)
         if exporter:
-            exporter.start(metrics)
+            exporter.start(counters.metrics)
             _active_exporters.append(exporter)

@@ -9,23 +9,10 @@ from typing import Any, Iterable, Mapping, Optional
 from .base import LeasedTask, WorkQueue
 from ..idempotency import IdempotencyResult, IdempotencyStore
 from ..task import TaskEnvelope
-from tm.obs.counters import metrics
+from tm.obs import counters
 
 
 LOGGER = logging.getLogger("tm.queue.manager")
-
-_QUEUE_ENQUEUED = metrics.get_counter("tm_queue_enqueued_total", help="Total tasks enqueued")
-_QUEUE_ACKED = metrics.get_counter("tm_queue_acked_total", help="Total tasks acknowledged")
-_QUEUE_NACKED = metrics.get_counter("tm_queue_nacked_total", help="Total tasks nacked")
-_QUEUE_REDELIVERED = metrics.get_counter("tm_queue_redelivered_total", help="Tasks scheduled for retry")
-_RETRIES_TOTAL = metrics.get_counter("tm_retries_total", help="Retry attempts issued")
-_DLQ_TOTAL = metrics.get_counter("tm_dlq_total", help="Tasks routed to the DLQ")
-_QUEUE_IDEMPO_HITS = metrics.get_counter("tm_queue_idempo_hits_total", help="Idempotency cache hits")
-
-_QUEUE_DEPTH_GAUGE = metrics.get_gauge("tm_queue_depth", help="Current tasks persisted in the work queue")
-_QUEUE_LAG_GAUGE = metrics.get_gauge("tm_queue_lag_seconds", help="Age of the oldest ready task")
-_QUEUE_INFLIGHT_GAUGE = metrics.get_gauge("tm_queue_inflight", help="Tasks currently leased")
-
 
 @dataclass(frozen=True)
 class ManagedLease:
@@ -92,7 +79,10 @@ class TaskQueueManager:
         if idem_key:
             cached = self._idempotency.get(composite)
             if cached is not None:
-                _QUEUE_IDEMPO_HITS.inc(labels={"flow": flow_id})
+                counters.metrics.get_counter(
+                    "tm_queue_idempo_hits_total",
+                    help="Idempotency cache hits",
+                ).inc(labels={"flow": flow_id})
                 return EnqueueOutcome(queued=False, envelope=None, cached_result=cached)
             with self._lock:
                 existing_task = self._pending_keys.get(composite)
@@ -100,10 +90,16 @@ class TaskQueueManager:
                     return EnqueueOutcome(queued=False, envelope=None, cached_result=None)
                 self._pending_keys[composite] = envelope.task_id
             self._store_envelope(envelope)
-            _QUEUE_ENQUEUED.inc(labels={"flow": flow_id})
+            counters.metrics.get_counter(
+                "tm_queue_enqueued_total",
+                help="Total tasks enqueued",
+            ).inc(labels={"flow": flow_id})
             return EnqueueOutcome(queued=True, envelope=envelope)
         self._store_envelope(envelope)
-        _QUEUE_ENQUEUED.inc(labels={"flow": flow_id})
+        counters.metrics.get_counter(
+            "tm_queue_enqueued_total",
+            help="Total tasks enqueued",
+        ).inc(labels={"flow": flow_id})
         return EnqueueOutcome(queued=True, envelope=envelope)
 
     def lease(self, count: int, lease_ms: int) -> list[ManagedLease]:
@@ -134,7 +130,10 @@ class TaskQueueManager:
         if clear_pending:
             self._clear_pending(lease.envelope)
         if record_metrics:
-            _QUEUE_ACKED.inc(labels={"flow": lease.flow_id})
+            counters.metrics.get_counter(
+                "tm_queue_acked_total",
+                help="Total tasks acknowledged",
+            ).inc(labels={"flow": lease.flow_id})
         self._record_queue_metrics()
 
     def nack(self, lease: ManagedLease, *, requeue: bool = True) -> None:
@@ -145,7 +144,13 @@ class TaskQueueManager:
             self._task_offsets.pop(lease.envelope.task_id, None)
         if not requeue:
             self._clear_pending(lease.envelope)
-        _QUEUE_NACKED.inc(labels={"flow": lease.flow_id, "requeue": str(requeue).lower()})
+        counters.metrics.get_counter(
+            "tm_queue_nacked_total",
+            help="Total tasks nacked",
+        ).inc(labels={
+            "flow": lease.flow_id,
+            "requeue": str(requeue).lower(),
+        })
         self._record_queue_metrics()
 
     def record_result(
@@ -175,8 +180,14 @@ class TaskQueueManager:
         if envelope.idempotency_key:
             with self._lock:
                 self._pending_keys[retry_envelope.composite_key] = retry_envelope.task_id
-        _QUEUE_REDELIVERED.inc(labels={"flow": envelope.flow_id})
-        _RETRIES_TOTAL.inc(labels={"flow": envelope.flow_id})
+        counters.metrics.get_counter(
+            "tm_queue_redelivered_total",
+            help="Tasks scheduled for retry",
+        ).inc(labels={"flow": envelope.flow_id})
+        counters.metrics.get_counter(
+            "tm_retries_total",
+            help="Retry attempts issued",
+        ).inc(labels={"flow": envelope.flow_id})
         return retry_envelope
 
     def record_dead_letter(
@@ -198,7 +209,10 @@ class TaskQueueManager:
                 )
             except Exception:  # pragma: no cover - DLQ failures shouldn't crash
                 LOGGER.exception("failed to append task %s to DLQ", envelope.task_id)
-        _DLQ_TOTAL.inc(labels={"flow": envelope.flow_id, "reason": reason})
+        counters.metrics.get_counter(
+            "tm_dlq_total",
+            help="Tasks routed to the DLQ",
+        ).inc(labels={"flow": envelope.flow_id, "reason": reason})
 
     def retry_policy(self) -> Optional[Any]:
         return self._retry_policy
@@ -247,15 +261,24 @@ class TaskQueueManager:
 
     def _record_queue_metrics(self) -> None:
         depth = self._queue.pending_count()
-        _QUEUE_DEPTH_GAUGE.set(depth)
+        counters.metrics.get_gauge(
+            "tm_queue_depth",
+            help="Current tasks persisted in the work queue",
+        ).set(depth)
         oldest = self._queue.oldest_available_at()
         lag = 0.0
         if oldest is not None:
             lag = max(0.0, time.monotonic() - oldest)
-        _QUEUE_LAG_GAUGE.set(lag)
+        counters.metrics.get_gauge(
+            "tm_queue_lag_seconds",
+            help="Age of the oldest ready task",
+        ).set(lag)
         with self._lock:
             inflight = self._inflight
-        _QUEUE_INFLIGHT_GAUGE.set(inflight)
+        counters.metrics.get_gauge(
+            "tm_queue_inflight",
+            help="Tasks currently leased",
+        ).set(inflight)
 
 
 __all__ = ["TaskQueueManager", "ManagedLease", "EnqueueOutcome"]

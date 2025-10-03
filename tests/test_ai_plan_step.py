@@ -22,8 +22,7 @@ class StubClient:
 
 
 def _reset_metrics():
-    counters.metrics._counters.clear()
-    counters.metrics._gauges.clear()
+    counters.metrics.reset()
 
 
 @pytest.mark.asyncio

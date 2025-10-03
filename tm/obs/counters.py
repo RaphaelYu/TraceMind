@@ -171,21 +171,72 @@ class Registry:
             }
 
 
-metrics = Registry()
+class _MetricsProxy:
+    """Thread-safe proxy around a metrics registry.
+
+    Allows swapping the underlying registry without forcing callers to import
+    a fresh module, which keeps tests isolated when they reset metrics.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._registry: Registry = Registry()
+
+    def use(self, registry: "Registry") -> None:
+        if not isinstance(registry, Registry):
+            raise TypeError("registry must be a Registry instance")
+        with self._lock:
+            self._registry = registry
+
+    def reset(self) -> None:
+        self.use(Registry())
+
+    def _current(self) -> "Registry":
+        with self._lock:
+            return self._registry
+
+    def get_counter(self, name: str, *, help: str | None = None) -> Counter:
+        return self._current().get_counter(name, help=help)
+
+    def get_gauge(self, name: str, *, help: str | None = None) -> Gauge:
+        return self._current().get_gauge(name, help=help)
+
+    def get_histogram(
+        self,
+        name: str,
+        *,
+        help: str | None = None,
+        buckets: Iterable[float] | None = None,
+    ) -> Histogram:
+        return self._current().get_histogram(name, help=help, buckets=buckets)
+
+    def snapshot(self) -> Dict[str, Dict[str, object]]:
+        return self._current().snapshot()
 
 
-def counter(name: str, labels: Iterable[str] | None = None, *, registry: Registry = metrics) -> Callable[..., None]:
+metrics = _MetricsProxy()
+
+
+def _reset_for_tests() -> None:
+    metrics.reset()
+
+
+def counter(
+    name: str,
+    labels: Iterable[str] | None = None,
+    *,
+    registry: Registry | _MetricsProxy = metrics,
+) -> Callable[..., None]:
     """Create a lightweight increment helper for a counter metric."""
 
     label_names = tuple(labels or ())
-    metric = registry.get_counter(name)
-
     def _inc(**kwargs: object) -> None:
         label_values: Dict[str, str] = {}
         for label in label_names:
             if label not in kwargs:
                 raise ValueError(f"Missing label '{label}' for counter '{name}'")
             label_values[label] = str(kwargs[label])
+        metric = registry.get_counter(name)
         metric.inc(labels=label_values if label_values else None)
 
     return _inc
@@ -197,5 +248,6 @@ __all__ = [
     "Histogram",
     "Registry",
     "metrics",
+    "_reset_for_tests",
     "counter",
 ]

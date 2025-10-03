@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-from tm.obs.counters import Registry, metrics
+from tm.obs.counters import Registry
+from tm.obs import counters
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,7 @@ class Observation:
 
 
 def from_metrics(registry: Registry | None = None) -> Observation:
-    reg = registry or metrics
+    reg = registry or counters.metrics
     snapshot = reg.snapshot()
     counters = {
         f"{name}{labels}": value
@@ -32,4 +33,3 @@ def from_metrics(registry: Registry | None = None) -> Observation:
         for labels, value in samples
     }
     return Observation(counters=counters, gauges=gauges)
-

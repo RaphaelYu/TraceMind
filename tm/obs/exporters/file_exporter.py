@@ -9,7 +9,8 @@ import time
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Mapping
 
-from tm.obs.counters import Registry, metrics
+from tm.obs.counters import Registry
+from tm.obs import counters
 
 
 def _flatten_snapshot(snapshot: Dict[str, Dict[str, object]]) -> List[Dict[str, object]]:
@@ -124,13 +125,17 @@ class FileExporter:
         return os.path.join(self._dir, f"metrics-{ts}.{ext}")
 
 
-def maybe_enable_from_env(env: Optional[Dict[str, str]] = None, registry: Registry = metrics) -> Optional[FileExporter]:
+def maybe_enable_from_env(
+    env: Optional[Dict[str, str]] = None,
+    registry: Optional[Registry] = None,
+) -> Optional[FileExporter]:
     env_map = env or os.environ
     dir_path = env_map.get("TRACE_METRICS_FILE_DIR")
     if not dir_path:
         return None
     fmt = env_map.get("TRACE_METRICS_FILE_FMT", "ndjson")
     interval = float(env_map.get("TRACE_METRICS_FILE_INTERVAL", "5"))
+    registry = registry or counters.metrics
     exporter = FileExporter(registry, dir_path=dir_path, fmt=fmt, interval_s=interval)
     exporter.start(registry)
     return exporter

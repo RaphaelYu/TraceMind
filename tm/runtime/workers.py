@@ -17,21 +17,12 @@ from .queue import FileWorkQueue, InMemoryWorkQueue, WorkQueue
 from .queue.manager import ManagedLease, TaskQueueManager
 from .dlq import DeadLetterStore
 from .retry import load_retry_policy
-from tm.obs.counters import metrics
+from tm.obs import counters
 
 LOGGER = logging.getLogger("tm.workers")
 
-WORKERS_LIVE_GAUGE = metrics.get_gauge("tm_workers_live", help="Active worker processes")
-TASK_PROCESSING_HIST = metrics.get_histogram(
-    "tm_task_processing_ms",
-    help="Task execution duration in milliseconds",
-    buckets=[50, 100, 250, 500, 1000, 5000, float("inf")],
-)
-END_TO_END_HIST = metrics.get_histogram(
-    "tm_end_to_end_ms",
-    help="End-to-end task latency in milliseconds",
-    buckets=[50, 100, 250, 500, 1000, 5000, float("inf")],
-)
+_TASK_PROCESSING_BUCKETS = [50, 100, 250, 500, 1000, 5000, float("inf")]
+_END_TO_END_BUCKETS = [50, 100, 250, 500, 1000, 5000, float("inf")]
 
 
 @dataclass
@@ -228,9 +219,17 @@ async def _process_lease(
 
     def _observe(status: str) -> None:
         duration_ms = (time.perf_counter() - processing_start) * 1000.0
-        TASK_PROCESSING_HIST.observe(duration_ms, labels={"flow": envelope.flow_id, "status": status})
+        counters.metrics.get_histogram(
+            "tm_task_processing_ms",
+            help="Task execution duration in milliseconds",
+            buckets=_TASK_PROCESSING_BUCKETS,
+        ).observe(duration_ms, labels={"flow": envelope.flow_id, "status": status})
         end_to_end_ms = max(0.0, (time.time() - envelope.scheduled_at) * 1000.0)
-        END_TO_END_HIST.observe(end_to_end_ms, labels={"flow": envelope.flow_id, "status": status})
+        counters.metrics.get_histogram(
+            "tm_end_to_end_ms",
+            help="End-to-end task latency in milliseconds",
+            buckets=_END_TO_END_BUCKETS,
+        ).observe(end_to_end_ms, labels={"flow": envelope.flow_id, "status": status})
 
     cached = manager.get_cached_result(envelope)
     if cached is not None:
@@ -483,7 +482,10 @@ class TaskWorkerSupervisor:
     def _record_worker_metrics(self) -> None:
         with self._lock:
             live = sum(1 for state in self._states.values() if state.process.is_alive())
-        WORKERS_LIVE_GAUGE.set(float(live))
+        counters.metrics.get_gauge(
+            "tm_workers_live",
+            help="Active worker processes",
+        ).set(float(live))
 
 
 def install_signal_handlers(supervisor: TaskWorkerSupervisor) -> None:  # pragma: no cover - CLI

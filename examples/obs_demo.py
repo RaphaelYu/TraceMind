@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from tm.obs.counters import counter, metrics
+from tm.obs.counters import Registry, counter
 from tm.obs.exporters import Exporter, register_exporter
-from tm.obs.counters import Registry
+from tm.obs import counters
 
 
 class PrintExporter:
@@ -34,4 +34,4 @@ events_total = counter("events_total", ["kind"])
 
 if __name__ == "__main__":
     events_total(kind="demo")
-    print("Current snapshot:", metrics.snapshot())
+    print("Current snapshot:", counters.metrics.snapshot())

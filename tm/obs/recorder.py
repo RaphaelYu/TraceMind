@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar, Dict, Optional
 
-from .counters import Registry, metrics
+from .counters import Registry
+from . import counters
 
 
 @dataclass
 class Recorder:
-    _registry: Registry = metrics
+    _registry: Registry = counters.metrics
     _default: ClassVar[Optional["Recorder"]] = None
 
     @classmethod
@@ -52,8 +53,8 @@ class Recorder:
     def on_tuner_select(self, binding: str, arm: str) -> None:
         if not binding or not arm:
             return
-        labels = {"flow": binding, "arm": arm}
-        self._registry.get_counter("tm_tuner_select_total").inc(labels=labels)
+        # Selection counter is recorded directly inside the tuner implementation.
+        return None
 
     def on_tuner_reward(self, binding: str, arm: str, reward: float) -> None:
         if not binding or not arm:

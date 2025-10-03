@@ -10,9 +10,7 @@ from tm.obs.recorder import Recorder
 
 
 def _reset_metrics() -> None:
-    counters.metrics._counters.clear()
-    counters.metrics._gauges.clear()
-    counters.metrics._histograms.clear()
+    counters.metrics.reset()
     Recorder._default = None  # type: ignore[attr-defined]
 
 

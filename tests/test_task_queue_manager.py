@@ -3,8 +3,6 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-import importlib
-
 from tm.runtime.dlq import DeadLetterStore
 from tm.runtime.idempotency import IdempotencyResult, IdempotencyStore
 from tm.runtime.queue.memory import InMemoryWorkQueue
@@ -44,9 +42,7 @@ class _Clock:
 
 
 def _fresh_manager(*, queue=None, store=None, dlq=None, default_ttl: float = 10.0, **kwargs):
-    counters.metrics = counters.Registry()
-    global queue_manager_module
-    queue_manager_module = importlib.reload(queue_manager_module)
+    counters.metrics.reset()
     queue = queue or InMemoryWorkQueue()
     if store is None:
         store = IdempotencyStore(dir_path="/tmp/idem")
@@ -90,9 +86,7 @@ def test_task_queue_manager_enforces_idempotency(tmp_path: Path):
 
 
 def test_task_queue_metrics(tmp_path: Path):
-    counters.metrics = counters.Registry()
-    global queue_manager_module
-    queue_manager_module = importlib.reload(queue_manager_module)
+    counters.metrics.reset()
     queue = InMemoryWorkQueue()
     store = IdempotencyStore(dir_path=str(tmp_path / "idem"))
     dlq = DeadLetterStore(str(tmp_path / "dlq"))

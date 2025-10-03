@@ -23,8 +23,7 @@ class StubClient:
 
 @pytest.fixture(autouse=True)
 def reset_metrics():
-    counters.metrics._counters.clear()
-    counters.metrics._gauges.clear()
+    counters.metrics.reset()
     Recorder._default = None  # type: ignore[attr-defined]
 
 

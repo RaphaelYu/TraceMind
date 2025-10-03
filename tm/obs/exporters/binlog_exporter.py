@@ -8,7 +8,8 @@ import threading
 import time
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from tm.obs.counters import Registry, metrics
+from tm.obs.counters import Registry
+from tm.obs import counters
 from tm.obs.exporters.file_exporter import _flatten_snapshot
 from tm.storage.binlog import BinaryLogWriter
 
@@ -127,12 +128,16 @@ class BinlogExporter:
                 pass
 
 
-def maybe_enable_from_env(env: Optional[Dict[str, str]] = None, registry: Registry = metrics) -> Optional[BinlogExporter]:
+def maybe_enable_from_env(
+    env: Optional[Dict[str, str]] = None,
+    registry: Optional[Registry] = None,
+) -> Optional[BinlogExporter]:
     env_map = env or os.environ
     dir_path = env_map.get("TRACE_METRICS_BINLOG_DIR")
     if not dir_path:
         return None
     interval = float(env_map.get("TRACE_METRICS_BINLOG_INTERVAL", "5"))
+    registry = registry or counters.metrics
     exporter = BinlogExporter(registry, dir_path=dir_path, interval_s=interval)
     exporter.start(registry)
     return exporter

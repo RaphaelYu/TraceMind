@@ -11,11 +11,12 @@ from tm.runtime.idempotency import IdempotencyStore
 from tm.runtime.queue import FileWorkQueue
 from tm.runtime.queue.manager import TaskQueueManager
 from tm.runtime.workers import TaskWorkerSupervisor, WorkerOptions
-from tm.obs.counters import metrics
+from tm.obs import counters
+from tm.obs.counters import _reset_for_tests
 
 
 def _gauge_value(name: str) -> float:
-    samples = metrics.snapshot()["gauges"].get(name, [])
+    samples = counters.metrics.snapshot()["gauges"].get(name, [])
     for label_items, value in samples:
         if not label_items:
             return float(value)
@@ -73,7 +74,7 @@ jitter_ms = 0
 
     supervisor = TaskWorkerSupervisor(opts)
     # reset metrics
-    metrics._gauges.clear()  # type: ignore[attr-defined]
+    _reset_for_tests()
     before_live = _gauge_value("tm_workers_live")
     supervisor.start()
     try:

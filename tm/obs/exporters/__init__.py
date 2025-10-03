@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Mapping, MutableMapping, Optional, Protocol
 
-from tm.obs.counters import Registry, metrics
+from tm.obs.counters import Registry
+from tm.obs import counters
+
+metrics = counters.metrics
 
 
 class Exporter(Protocol):
@@ -47,4 +50,3 @@ __all__ = [
     "list_exporters",
     "metrics",
 ]
-

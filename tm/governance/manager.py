@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from tm.guard import GuardDecision, GuardEngine, GuardRule
-from tm.obs.counters import metrics
+from tm.obs import counters
 
 from .audit import AuditTrail
 from .budget import BudgetDecision, BudgetTracker
@@ -318,24 +318,26 @@ class GovernanceManager:
             handle.breaker.release_half_open_slot()
 
     def _record_rate_reject(self, key: LimitKey) -> None:
-        metrics.get_counter("tm_govern_qps_limited_total").inc(labels={"scope": _format_limit_scope(key)})
+        counters.metrics.get_counter("tm_govern_qps_limited_total").inc(
+            labels={"scope": _format_limit_scope(key)}
+        )
 
     def _record_budget_reject(self, key: LimitKey, kind: Optional[str]) -> None:
         labels = {"scope": _format_limit_scope(key)}
         if kind:
             labels["kind"] = kind
-        metrics.get_counter("tm_govern_budget_exceeded_total").inc(labels=labels)
+        counters.metrics.get_counter("tm_govern_budget_exceeded_total").inc(labels=labels)
 
     def _record_breaker_reject(self, key: BreakerKey, state: BreakerState) -> None:
         labels = {"target": _format_breaker_scope(key), "state": state.value}
-        metrics.get_counter("tm_breaker_trips_total").inc(labels=labels)
+        counters.metrics.get_counter("tm_breaker_trips_total").inc(labels=labels)
         self._record_breaker_state(key, state)
 
     def _record_budget_usage(self, key: LimitKey, kind: str, value: Optional[float]) -> None:
         if value is None:
             return
         labels = {"scope": _format_limit_scope(key), "kind": kind}
-        metrics.get_gauge("tm_govern_budget_usage").set(float(value), labels=labels)
+        counters.metrics.get_gauge("tm_govern_budget_usage").set(float(value), labels=labels)
 
     def _record_breaker_state(self, key: BreakerKey, state: BreakerState) -> None:
         value = {
@@ -343,13 +345,16 @@ class GovernanceManager:
             BreakerState.HALF_OPEN: 0.5,
             BreakerState.OPEN: 1.0,
         }[state]
-        metrics.get_gauge("tm_breaker_state").set(value, labels={"target": _format_breaker_scope(key)})
+        counters.metrics.get_gauge("tm_breaker_state").set(
+            value,
+            labels={"target": _format_breaker_scope(key)},
+        )
 
     def _update_concurrency_gauge(self, reservation: LimitReservation) -> None:
         level, name, _ = reservation.key
         if level != "flow" or not name:
             return
-        metrics.get_gauge("tm_govern_current_concurrency").set(
+        counters.metrics.get_gauge("tm_govern_current_concurrency").set(
             float(reservation.rate.active),
             labels={"flow": name},
         )

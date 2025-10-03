@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 from .bandit import EpsilonGreedy, UCB1
 from .base import ArmSnapshot, TunerStrategy
+from tm.obs import counters
 from tm.obs.recorder import Recorder
 
 
@@ -57,6 +58,9 @@ class BanditTuner:
             choice = strategy.select(binding, binding, arms, ctx)
             if choice not in arms:
                 raise ValueError(f"Strategy selected unknown arm '{choice}'")
+            counters.metrics.get_counter("tm_tuner_select_total").inc(
+                labels={"flow": binding, "arm": choice}
+            )
             Recorder.default().on_tuner_select(binding, choice)
             return choice
 
