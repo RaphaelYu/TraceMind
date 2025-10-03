@@ -3,7 +3,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 from datetime import datetime, timedelta, timezone
 from tm.app.demo_plan import build_plan
 from tm.pipeline.analysis import analyze_plan
@@ -13,6 +13,12 @@ from tm.run_recipe import run_recipe
 from tm.governance.audit import AuditTrail
 from tm.governance.config import load_governance_config
 from tm.governance.hitl import HitlManager
+from tm.runtime.workers import WorkerOptions, TaskWorkerSupervisor, install_signal_handlers
+from tm.runtime.dlq import DeadLetterStore
+from tm.runtime.queue import FileWorkQueue
+from tm.runtime.idempotency import IdempotencyStore
+from tm.runtime.queue.manager import TaskQueueManager
+from tm.runtime.retry import load_retry_policy
 
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
@@ -260,6 +266,128 @@ if __name__ == "__main__":
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     run_parser.set_defaults(func=_cmd_run)
+
+    workers_parser = sub.add_parser("workers", help="manage worker processes")
+    workers_sub = workers_parser.add_subparsers(dest="wcmd")
+
+    workers_start = workers_sub.add_parser("start", help="start worker pool")
+    workers_start.add_argument("-n", "--num", dest="worker_count", type=int, default=1, help="number of worker processes")
+    workers_start.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend")
+    workers_start.add_argument("--queue-dir", default="data/queue", help="queue directory (file backend)")
+    workers_start.add_argument("--idempotency-dir", default="data/idempotency", help="idempotency cache directory")
+    workers_start.add_argument("--dlq-dir", default="data/dlq", help="dead letter queue directory")
+    workers_start.add_argument(
+        "--runtime",
+        default="tm.app.wiring_flows:_runtime",
+        help="runtime factory in module:attr format",
+    )
+    workers_start.add_argument("--lease-ms", type=int, default=30_000, help="lease duration in milliseconds")
+    workers_start.add_argument("--batch", type=int, default=1, help="tasks to lease per fetch")
+    workers_start.add_argument("--poll", type=float, default=0.5, help="poll interval when idle (seconds)")
+    workers_start.add_argument("--heartbeat", type=float, default=5.0, help="heartbeat interval (seconds)")
+    workers_start.add_argument("--heartbeat-timeout", type=float, default=15.0, help="heartbeat timeout before restart (seconds)")
+    workers_start.add_argument("--result-ttl", type=float, default=3600.0, help="idempotency result TTL (seconds)")
+    workers_start.add_argument("--config", help="config file for retry policies", default="trace_config.toml")
+    workers_start.add_argument("--drain-grace", type=float, default=10.0, help="grace period (s) when draining")
+
+    def _cmd_workers_start(args):
+        opts = WorkerOptions(
+            worker_count=args.worker_count,
+            queue_backend=args.queue,
+            queue_dir=str(Path(args.queue_dir).resolve()),
+            idempotency_dir=str(Path(args.idempotency_dir).resolve()),
+            dlq_dir=str(Path(args.dlq_dir).resolve()),
+            runtime_spec=args.runtime,
+            lease_ms=args.lease_ms,
+            batch_size=args.batch,
+            poll_interval=args.poll,
+            heartbeat_interval=args.heartbeat,
+            heartbeat_timeout=args.heartbeat_timeout,
+            result_ttl=args.result_ttl,
+            config_path=str(Path(args.config).resolve()) if args.config else None,
+            drain_grace=args.drain_grace,
+        )
+        supervisor = TaskWorkerSupervisor(opts)
+        install_signal_handlers(supervisor)
+        supervisor.run_forever()
+
+    workers_start.set_defaults(func=_cmd_workers_start)
+
+    dlq_parser = sub.add_parser("dlq", help="dead letter queue tools")
+    dlq_sub = dlq_parser.add_subparsers(dest="dlqcmd")
+
+    dlq_ls = dlq_sub.add_parser("ls", help="list DLQ entries")
+    dlq_ls.add_argument("--dlq-dir", default="data/dlq", help="dead letter directory")
+    dlq_ls.add_argument("--limit", type=int, default=20, help="maximum entries to display")
+
+    def _cmd_dlq_ls(args):
+        store = DeadLetterStore(args.dlq_dir)
+        count = 0
+        for record in store.list():
+            print(
+                json.dumps(
+                    {
+                        "entry_id": record.entry_id,
+                        "flow_id": record.flow_id,
+                        "attempt": record.attempt,
+                        "timestamp": record.timestamp,
+                        "error": record.error,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            count += 1
+            if args.limit and count >= args.limit:
+                break
+
+    dlq_ls.set_defaults(func=_cmd_dlq_ls)
+
+    dlq_requeue = dlq_sub.add_parser("requeue", help="requeue a DLQ entry")
+    dlq_requeue.add_argument("entry_id", help="DLQ entry identifier")
+    dlq_requeue.add_argument("--dlq-dir", default="data/dlq")
+    dlq_requeue.add_argument("--queue-dir", default="data/queue")
+    dlq_requeue.add_argument("--idempotency-dir", default="data/idempotency")
+    dlq_requeue.add_argument("--config", default="trace_config.toml")
+
+    def _cmd_dlq_requeue(args):
+        store = DeadLetterStore(args.dlq_dir)
+        record = store.load(args.entry_id)
+        if record is None:
+            print(f"entry '{args.entry_id}' not found", file=sys.stderr)
+            sys.exit(1)
+        queue = FileWorkQueue(str(Path(args.queue_dir).resolve()))
+        idem = IdempotencyStore(dir_path=str(Path(args.idempotency_dir).resolve()))
+        policy = load_retry_policy(args.config)
+        manager = TaskQueueManager(queue, idem, retry_policy=policy)
+        headers = dict(record.task.get("headers", {})) if isinstance(record.task, Mapping) else {}
+        trace = record.task.get("trace") if isinstance(record.task, Mapping) else {}
+        outcome = manager.enqueue(
+            flow_id=record.flow_id,
+            input=record.task.get("input", {}),
+            headers=headers,
+            trace=trace if isinstance(trace, Mapping) else {},
+        )
+        queue.flush()
+        queue.close()
+        store.consume(record.entry_id, state="requeued")
+        if outcome.envelope:
+            print(f"requeued {record.entry_id} -> task {outcome.envelope.task_id}")
+
+    dlq_requeue.set_defaults(func=_cmd_dlq_requeue)
+
+    dlq_purge = dlq_sub.add_parser("purge", help="purge a DLQ entry")
+    dlq_purge.add_argument("entry_id", help="DLQ entry identifier")
+    dlq_purge.add_argument("--dlq-dir", default="data/dlq")
+
+    def _cmd_dlq_purge(args):
+        store = DeadLetterStore(args.dlq_dir)
+        record = store.consume(args.entry_id, state="purged")
+        if record is None:
+            print(f"entry '{args.entry_id}' not found", file=sys.stderr)
+            sys.exit(1)
+        print(f"purged {args.entry_id}")
+
+    dlq_purge.set_defaults(func=_cmd_dlq_purge)
 
     args = parser.parse_args()
     if hasattr(args, "func"):

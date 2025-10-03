@@ -1,0 +1,16 @@
+[queue]
+backend = "file"
+segment_max_mb = 64
+lease_ms = 30000
+
+[retries.default]
+max_attempts = 5
+base_ms = 200
+factor = 2.0
+jitter_ms = 100
+
+# Example per-flow override
+# [retries.flow."demo.flow"]
+# max_attempts = 3
+# base_ms = 100
+# factor = 1.5

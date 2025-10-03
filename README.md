@@ -89,6 +89,10 @@ Agent Evolution Timeline
 - [Helpers reference](docs/helpers.md)
 - [Policy lifecycle & MCP integration](docs/policy.md)
 
+### Scale & Reliability
+
+- [Queue retries & DLQ](docs/howto/retries_dlq.md)
+
 ### Safety & Governance
 
 - [Governance overview](docs/governance.md)
