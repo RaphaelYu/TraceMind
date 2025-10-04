@@ -1,10 +1,16 @@
 # tm/cli.py
 import argparse
+import fnmatch
 import json
+import os
+import signal
 import sys
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping
-from datetime import datetime, timedelta, timezone
+
+import yaml
 from tm.app.demo_plan import build_plan
 from tm.pipeline.analysis import analyze_plan
 from tm.obs.retrospect import load_window
@@ -15,7 +21,7 @@ from tm.governance.config import load_governance_config
 from tm.governance.hitl import HitlManager
 from tm.runtime.workers import WorkerOptions, TaskWorkerSupervisor, install_signal_handlers
 from tm.runtime.dlq import DeadLetterStore
-from tm.runtime.queue import FileWorkQueue
+from tm.runtime.queue import FileWorkQueue, InMemoryWorkQueue
 from tm.runtime.idempotency import IdempotencyStore
 from tm.runtime.queue.manager import TaskQueueManager
 from tm.runtime.retry import load_retry_policy
@@ -267,10 +273,127 @@ if __name__ == "__main__":
 
     run_parser.set_defaults(func=_cmd_run)
 
-    workers_parser = sub.add_parser("workers", help="manage worker processes")
-    workers_sub = workers_parser.add_subparsers(dest="wcmd")
+    def _load_json_arg(value: str, *, default: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        if value is None:
+            return default or {}
+        raw = value
+        if raw.startswith("@"):
+            raw = Path(raw[1:]).read_text(encoding="utf-8")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON: {exc}") from exc
+        if not isinstance(data, Mapping):
+            raise ValueError("JSON payload must be an object")
+        return dict(data)
 
-    workers_start = workers_sub.add_parser("start", help="start worker pool")
+    enqueue_parser = sub.add_parser(
+        "enqueue",
+        help="enqueue a flow run",
+        description="Enqueue a flow invocation for background workers.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm enqueue flows/hello.yaml -i '{\"name\":\"world\"}'""",
+    )
+    enqueue_parser.add_argument("flow", help="Flow id or YAML spec path containing flow.id")
+    enqueue_parser.add_argument("-i", "--input", default="{}", help="JSON payload or @file path")
+    enqueue_parser.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend")
+    enqueue_parser.add_argument("--queue-dir", default="data/queue", help="queue directory (file backend)")
+    enqueue_parser.add_argument(
+        "--idempotency-dir",
+        default="data/idempotency",
+        help="idempotency cache directory",
+    )
+    enqueue_parser.add_argument("--idempotency-key", help="set idempotency key header")
+    enqueue_parser.add_argument("--headers", help="additional headers JSON or @file")
+    enqueue_parser.add_argument("--trace", help="trace metadata JSON or @file")
+
+    def _resolve_flow_id(arg: str) -> str:
+        path = Path(arg)
+        if path.is_file():
+            try:
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                raise ValueError(f"Failed to parse flow spec at {path}: {exc}") from exc
+            if isinstance(data, Mapping):
+                flow = data.get("flow")
+                if isinstance(flow, Mapping):
+                    flow_id = flow.get("id")
+                    if isinstance(flow_id, str) and flow_id.strip():
+                        return flow_id.strip()
+            return path.stem
+        return arg
+
+    def _cmd_enqueue(args):
+        try:
+            payload = _load_json_arg(args.input, default={})
+            headers = _load_json_arg(args.headers, default={}) if args.headers else {}
+            trace = _load_json_arg(args.trace, default={}) if args.trace else {}
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+
+        if args.idempotency_key:
+            headers.setdefault("idempotency_key", args.idempotency_key)
+
+        try:
+            flow_id = _resolve_flow_id(args.flow)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+
+        if not flow_id:
+            print("Unable to determine flow id", file=sys.stderr)
+            sys.exit(1)
+
+        queue_backend = args.queue
+        if queue_backend == "file":
+            queue_dir = Path(args.queue_dir).resolve()
+            queue_dir.mkdir(parents=True, exist_ok=True)
+            queue = FileWorkQueue(str(queue_dir))
+        else:
+            queue = InMemoryWorkQueue()
+
+        idem_dir = Path(args.idempotency_dir).resolve()
+        idem_dir.mkdir(parents=True, exist_ok=True)
+        idem_store = IdempotencyStore(dir_path=str(idem_dir))
+
+        manager = TaskQueueManager(queue, idem_store)
+        outcome = manager.enqueue(
+            flow_id=flow_id,
+            input=payload,
+            headers=headers or None,
+            trace=trace or None,
+        )
+        if queue_backend == "file":
+            queue.flush()
+            queue.close()
+
+        if outcome.queued and outcome.envelope:
+            print(f"enqueued task {outcome.envelope.task_id} for flow '{flow_id}'")
+        elif outcome.cached_result is not None:
+            print("duplicate request (served from idempotency cache)")
+        else:
+            print("task already pending; not enqueued")
+
+    enqueue_parser.set_defaults(func=_cmd_enqueue)
+
+    workers_parser = sub.add_parser(
+        "workers",
+        help="manage worker processes",
+        description="Start, monitor, and gracefully stop worker pools.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:\n  tm workers start -n 4 --queue file --lease-ms 30000\n  tm workers stop""",
+    )
+    workers_sub = workers_parser.add_subparsers(dest="wcmd")
+    workers_sub.required = True
+
+    workers_start = workers_sub.add_parser(
+        "start",
+        help="start worker pool",
+        description="Launch a pool of TraceMind workers and keep it running until signalled.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm workers start -n 4 --queue file --lease-ms 30000""",
+    )
     workers_start.add_argument("-n", "--num", dest="worker_count", type=int, default=1, help="number of worker processes")
     workers_start.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend")
     workers_start.add_argument("--queue-dir", default="data/queue", help="queue directory (file backend)")
@@ -289,14 +412,26 @@ if __name__ == "__main__":
     workers_start.add_argument("--result-ttl", type=float, default=3600.0, help="idempotency result TTL (seconds)")
     workers_start.add_argument("--config", help="config file for retry policies", default="trace_config.toml")
     workers_start.add_argument("--drain-grace", type=float, default=10.0, help="grace period (s) when draining")
+    workers_start.add_argument(
+        "--pid-file",
+        default="tm-workers.pid",
+        help="write supervisor PID for tm workers stop",
+    )
 
     def _cmd_workers_start(args):
+        queue_dir = Path(args.queue_dir).resolve()
+        queue_dir.mkdir(parents=True, exist_ok=True)
+        idem_dir = Path(args.idempotency_dir).resolve()
+        idem_dir.mkdir(parents=True, exist_ok=True)
+        dlq_dir = Path(args.dlq_dir).resolve()
+        dlq_dir.mkdir(parents=True, exist_ok=True)
+
         opts = WorkerOptions(
             worker_count=args.worker_count,
             queue_backend=args.queue,
-            queue_dir=str(Path(args.queue_dir).resolve()),
-            idempotency_dir=str(Path(args.idempotency_dir).resolve()),
-            dlq_dir=str(Path(args.dlq_dir).resolve()),
+            queue_dir=str(queue_dir),
+            idempotency_dir=str(idem_dir),
+            dlq_dir=str(dlq_dir),
             runtime_spec=args.runtime,
             lease_ms=args.lease_ms,
             batch_size=args.batch,
@@ -309,21 +444,163 @@ if __name__ == "__main__":
         )
         supervisor = TaskWorkerSupervisor(opts)
         install_signal_handlers(supervisor)
-        supervisor.run_forever()
+        pid_path = Path(args.pid_file).resolve()
+        try:
+            pid_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        try:
+            pid_path.write_text(str(os.getpid()), encoding="utf-8")
+        except Exception:
+            print(f"warning: failed to write pid file at {pid_path}", file=sys.stderr)
+        else:
+            print(f"worker supervisor running (pid {os.getpid()}); ctrl-c or 'tm workers stop' to drain")
+        try:
+            supervisor.run_forever()
+        finally:
+            try:
+                pid_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     workers_start.set_defaults(func=_cmd_workers_start)
 
-    dlq_parser = sub.add_parser("dlq", help="dead letter queue tools")
-    dlq_sub = dlq_parser.add_subparsers(dest="dlqcmd")
+    workers_stop = workers_sub.add_parser(
+        "stop",
+        help="signal workers to drain",
+        description="Send SIGTERM to the running worker supervisor so it drains and exits.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm workers stop""",
+    )
+    workers_stop.add_argument(
+        "--pid-file",
+        default="tm-workers.pid",
+        help="PID file written by 'tm workers start'",
+    )
+    workers_stop.add_argument(
+        "--signal",
+        choices=["TERM", "INT"],
+        default="TERM",
+        help="signal to send (default: TERM)",
+    )
 
-    dlq_ls = dlq_sub.add_parser("ls", help="list DLQ entries")
+    def _cmd_workers_stop(args):
+        pid_path = Path(args.pid_file).resolve()
+        if not pid_path.exists():
+            print(f"pid file not found at {pid_path}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            pid = int(pid_path.read_text(encoding="utf-8").strip())
+        except Exception as exc:
+            print(f"failed to read pid from {pid_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        sig = signal.SIGTERM if args.signal == "TERM" else signal.SIGINT
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            print(f"no process with pid {pid}")
+            try:
+                pid_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return
+        print(f"sent SIG{args.signal} to worker supervisor (pid {pid})")
+
+    workers_stop.set_defaults(func=_cmd_workers_stop)
+
+    queue_parser = sub.add_parser(
+        "queue",
+        help="queue utilities",
+        description="Inspect queue state without poking running workers.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm queue stats --queue file""",
+    )
+    queue_sub = queue_parser.add_subparsers(dest="qcmd")
+    queue_sub.required = True
+
+    queue_stats = queue_sub.add_parser(
+        "stats",
+        help="show queue metrics",
+        description="Inspect queue depth, inflight tasks, and lag without leasing new work.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm queue stats --queue file""",
+    )
+    queue_stats.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend")
+    queue_stats.add_argument("--queue-dir", default="data/queue", help="queue directory (file backend)")
+    queue_stats.add_argument("--json", action="store_true", help="emit JSON instead of text")
+
+    def _cmd_queue_stats(args):
+        now = time.monotonic()
+        if args.queue == "file":
+            queue_dir = Path(args.queue_dir).resolve()
+            queue_dir.mkdir(parents=True, exist_ok=True)
+            queue = FileWorkQueue(str(queue_dir))
+        else:
+            queue = InMemoryWorkQueue()
+        try:
+            depth = queue.pending_count()
+            oldest = queue.oldest_available_at()
+            lag = max(0.0, now - oldest) if oldest is not None else 0.0
+            entries = getattr(queue, "_entries", {})
+            inflight = 0
+            if isinstance(entries, Mapping):
+                inflight = sum(1 for entry in entries.values() if getattr(entry, "token", None))
+            ready = max(0, depth - inflight)
+            stats = {
+                "backend": args.queue,
+                "depth": depth,
+                "ready": ready,
+                "inflight": inflight,
+                "lag_seconds": lag,
+            }
+            if args.json:
+                print(json.dumps(stats, ensure_ascii=False, indent=2))
+            else:
+                print(f"backend       : {stats['backend']}")
+                print(f"depth         : {stats['depth']}")
+                print(f"ready         : {stats['ready']}")
+                print(f"inflight      : {stats['inflight']}")
+                print(f"lag_seconds   : {stats['lag_seconds']:.3f}")
+        finally:
+            if args.queue == "file":
+                queue.close()
+
+    queue_stats.set_defaults(func=_cmd_queue_stats)
+
+    dlq_parser = sub.add_parser(
+        "dlq",
+        help="dead letter queue tools",
+        description="Inspect, requeue, or purge entries in the DLQ.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:\n  tm dlq ls --limit 5\n  tm dlq requeue dlq-1700*""",
+    )
+    dlq_sub = dlq_parser.add_subparsers(dest="dlqcmd")
+    dlq_sub.required = True
+
+    dlq_ls = dlq_sub.add_parser(
+        "ls",
+        help="list DLQ entries",
+        description="Print pending dead letter entries for inspection.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm dlq ls --since 15m --limit 5""",
+    )
     dlq_ls.add_argument("--dlq-dir", default="data/dlq", help="dead letter directory")
     dlq_ls.add_argument("--limit", type=int, default=20, help="maximum entries to display")
+    dlq_ls.add_argument("--since", help="only include entries newer than duration (e.g. 10m, 1h)")
 
     def _cmd_dlq_ls(args):
         store = DeadLetterStore(args.dlq_dir)
         count = 0
+        since_cutoff = None
+        if args.since:
+            try:
+                since_cutoff = time.time() - _parse_duration(args.since).total_seconds()
+            except Exception as exc:
+                print(f"invalid --since value: {exc}", file=sys.stderr)
+                sys.exit(1)
         for record in store.list():
+            if since_cutoff is not None and record.timestamp < since_cutoff:
+                continue
             print(
                 json.dumps(
                     {
@@ -342,50 +619,89 @@ if __name__ == "__main__":
 
     dlq_ls.set_defaults(func=_cmd_dlq_ls)
 
-    dlq_requeue = dlq_sub.add_parser("requeue", help="requeue a DLQ entry")
-    dlq_requeue.add_argument("entry_id", help="DLQ entry identifier")
+    dlq_requeue = dlq_sub.add_parser(
+        "requeue",
+        help="requeue DLQ entries",
+        description="Return one or more DLQ entries to the work queue.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm dlq requeue dlq-1700* --dlq-dir data/dlq""",
+    )
+    dlq_requeue.add_argument("pattern", help="Entry id or glob-style pattern")
     dlq_requeue.add_argument("--dlq-dir", default="data/dlq")
     dlq_requeue.add_argument("--queue-dir", default="data/queue")
     dlq_requeue.add_argument("--idempotency-dir", default="data/idempotency")
     dlq_requeue.add_argument("--config", default="trace_config.toml")
+    dlq_requeue.add_argument("--all", action="store_true", help="requeue all matching entries")
 
     def _cmd_dlq_requeue(args):
         store = DeadLetterStore(args.dlq_dir)
-        record = store.load(args.entry_id)
-        if record is None:
-            print(f"entry '{args.entry_id}' not found", file=sys.stderr)
+        matches = [
+            record for record in store.list()
+            if record.entry_id == args.pattern or fnmatch.fnmatch(record.entry_id, args.pattern)
+        ]
+        if not matches:
+            print(f"no DLQ entries match '{args.pattern}'", file=sys.stderr)
             sys.exit(1)
+        if not args.all:
+            matches = matches[:1]
         queue = FileWorkQueue(str(Path(args.queue_dir).resolve()))
         idem = IdempotencyStore(dir_path=str(Path(args.idempotency_dir).resolve()))
         policy = load_retry_policy(args.config)
         manager = TaskQueueManager(queue, idem, retry_policy=policy)
-        headers = dict(record.task.get("headers", {})) if isinstance(record.task, Mapping) else {}
-        trace = record.task.get("trace") if isinstance(record.task, Mapping) else {}
-        outcome = manager.enqueue(
-            flow_id=record.flow_id,
-            input=record.task.get("input", {}),
-            headers=headers,
-            trace=trace if isinstance(trace, Mapping) else {},
-        )
-        queue.flush()
-        queue.close()
-        store.consume(record.entry_id, state="requeued")
-        if outcome.envelope:
-            print(f"requeued {record.entry_id} -> task {outcome.envelope.task_id}")
+        try:
+            for record in matches:
+                headers = dict(record.task.get("headers", {})) if isinstance(record.task, Mapping) else {}
+                trace = record.task.get("trace") if isinstance(record.task, Mapping) else {}
+                outcome = manager.enqueue(
+                    flow_id=record.flow_id,
+                    input=record.task.get("input", {}),
+                    headers=headers,
+                    trace=trace if isinstance(trace, Mapping) else {},
+                )
+                if outcome.envelope:
+                    print(f"requeued {record.entry_id} -> task {outcome.envelope.task_id}")
+                else:
+                    print(f"skipped {record.entry_id} (duplicate)")
+                store.consume(record.entry_id, state="requeued")
+        finally:
+            queue.flush()
+            queue.close()
 
     dlq_requeue.set_defaults(func=_cmd_dlq_requeue)
 
-    dlq_purge = dlq_sub.add_parser("purge", help="purge a DLQ entry")
-    dlq_purge.add_argument("entry_id", help="DLQ entry identifier")
+    dlq_purge = dlq_sub.add_parser(
+        "purge",
+        help="purge DLQ entries",
+        description="Permanently archive matching DLQ entries after confirmation.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Example:\n  tm dlq purge dlq-1700* --yes""",
+    )
+    dlq_purge.add_argument("pattern", help="Entry id or glob-style pattern")
     dlq_purge.add_argument("--dlq-dir", default="data/dlq")
+    dlq_purge.add_argument("--yes", action="store_true", help="skip confirmation prompt")
 
     def _cmd_dlq_purge(args):
         store = DeadLetterStore(args.dlq_dir)
-        record = store.consume(args.entry_id, state="purged")
-        if record is None:
-            print(f"entry '{args.entry_id}' not found", file=sys.stderr)
+        matches = [
+            record.entry_id
+            for record in store.list()
+            if record.entry_id == args.pattern or fnmatch.fnmatch(record.entry_id, args.pattern)
+        ]
+        if not matches:
+            print(f"no DLQ entries match '{args.pattern}'", file=sys.stderr)
             sys.exit(1)
-        print(f"purged {args.entry_id}")
+        if not args.yes:
+            prompt = f"Permanently purge {len(matches)} entr{'y' if len(matches)==1 else 'ies'}? type 'purge' to confirm: "
+            response = input(prompt)
+            if response.strip().lower() != "purge":
+                print("aborted")
+                return
+        for entry_id in matches:
+            record = store.consume(entry_id, state="purged")
+            if record is None:
+                print(f"entry '{entry_id}' already handled")
+            else:
+                print(f"purged {entry_id}")
 
     dlq_purge.set_defaults(func=_cmd_dlq_purge)
 

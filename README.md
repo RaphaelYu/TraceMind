@@ -91,6 +91,7 @@ Agent Evolution Timeline
 
 ### Scale & Reliability
 
+- [Scale & Reliability guide](docs/scale-and-reliability.md)
 - [Queue retries & DLQ](docs/howto/retries_dlq.md)
 
 ### Safety & Governance
@@ -134,6 +135,33 @@ docker run --rm -it \
   -v $(pwd)/data:/data \
   -p 8080:8080 \
   trace-mind
+```
+
+
+### Scale & Reliability demo
+
+See the [Scale & Reliability guide](docs/scale-and-reliability.md) for full context. The commands below can be pasted into a shell to exercise the worker pool, queue stats, and DLQ tooling.
+
+```bash
+# Start workers
+TM_LOG=info tm workers start -n 4 --queue file --lease-ms 30000 &
+
+# Enqueue 1000 CPU-light tasks
+for i in {1..1000}; do tm enqueue flows/hello.yaml -i '{"name":"w'$i'"}'; done
+
+# Live queue stats
+tm queue stats
+
+# Retry/DLQ demo — simulate failures by input flag/env within your step
+export FAIL_RATE=0.05
+# (run some tasks…)
+
+tm dlq ls | head        # Inspect
+# Requeue a subset by id/prefix/predicate (implementation-specific)
+tm dlq requeue <task-id>
+
+# Graceful drain
+tm workers stop
 ```
 
 ---

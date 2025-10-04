@@ -1,0 +1,47 @@
+name: Docs & Examples Check
+on:
+  pull_request:
+    branches: [ "main", "release/**" ]
+  workflow_dispatch:
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Link checker over README and docs
+      - name: Link check (lychee)
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: >-
+            --no-progress --verbose \
+            --accept 200,206 \
+            ./README.md ./docs/**/*.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build the package just to ensure docs changes don't break packaging
+      - name: Package sanity build
+        run: |
+          python -m pip install -U pip build twine
+          python -m build
+          twine check dist/*
+
+      # Minimal CLI smoke so examples in REL-8 remain accurate
+      - name: CLI help smoke
+        run: |
+          python -m pip install .
+          tm workers --help | head -n 20
+          tm queue --help   | head -n 20
+          tm dlq --help     | head -n 20
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dist-from-docs-check
+          path: dist/*
