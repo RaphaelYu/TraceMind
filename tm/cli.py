@@ -12,7 +12,10 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # optional dependency; commands that need it will check explicitly
+    yaml = None
 from tm.app.demo_plan import build_plan
 from tm.pipeline.analysis import analyze_plan
 from tm.obs.retrospect import load_window
@@ -346,6 +349,8 @@ def _build_parser() -> argparse.ArgumentParser:
     def _resolve_flow_id(arg: str) -> str:
         path = Path(arg)
         if path.is_file():
+            if yaml is None:
+                raise RuntimeError("PyYAML is required to load flow specifications; install the 'yaml' extra, e.g. `pip install trace-mind[yaml]`.")
             try:
                 data = yaml.safe_load(path.read_text(encoding="utf-8"))
             except Exception as exc:
