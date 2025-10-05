@@ -1,3 +1,4 @@
+[![PyPI](https://img.shields.io/pypi/v/trace-mind.svg)](#)
 # TraceMind
 
 **TraceMind** – A lightweight, event-sourced smart agent framework.
