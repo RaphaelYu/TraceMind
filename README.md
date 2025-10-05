@@ -119,12 +119,22 @@ cd trace-mind
 
 # install and scaffold a demo project
 pip install -e .
+
+# verify CLI wiring
+which python
+which pip
+which tm
+tm --help
+python -m tm --help
+
 tm init demo
 cd demo
 
 # execute the sample flow
 tm run flows/hello.yaml -i '{"name":"world"}'
 ```
+
+> Tip: if `which tm` does not return a path, activate your virtual environment and rerun `pip install -e .` so the console script is added to your `PATH`.
 
 ### Run in container
 

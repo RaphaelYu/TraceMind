@@ -24,6 +24,9 @@ dependencies = [
   "networkx>=3.2",
 ]
 
+[project.scripts]
+tm = "tm.cli:main"
+
 [project.optional-dependencies]
 yaml = ["PyYAML>=6.0"]
 prom = ["prometheus-client>=0.16"]

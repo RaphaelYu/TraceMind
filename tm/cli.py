@@ -8,8 +8,9 @@ import signal
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Sequence
 
 import yaml
 from tm.app.demo_plan import build_plan
@@ -31,6 +32,16 @@ __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
 
 _TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
+
+
+def _cli_version() -> str:
+    try:
+        return importlib_metadata.version("trace-mind")
+    except importlib_metadata.PackageNotFoundError:
+        return "trace-mind (development)"
+    except Exception:
+        return "trace-mind (unknown)"
+
 
 def _init_from_template(template: str, project_name: str, *, force: bool) -> Path:
     template_dir = _TEMPLATE_ROOT / template
@@ -91,8 +102,9 @@ def _build_hitl_manager(config_path: str) -> HitlManager:
         raise RuntimeError("HITL approvals are disabled in configuration")
     return HitlManager(hitl_cfg, audit=AuditTrail(cfg.audit))
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TraceMind CLI")
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="tm", description="TraceMind CLI")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_cli_version()}")
     sub = parser.add_subparsers(dest="cmd")
 
     plugin_parser = sub.add_parser("plugin", help="plugin tools")
@@ -729,9 +741,19 @@ if __name__ == "__main__":
 
     dlq_purge.set_defaults(func=_cmd_dlq_purge)
 
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
     if hasattr(args, "func"):
-        args.func(args)
-    else:
-        # fallback: keep old behavior (imported by Hypercorn)
-        pass
+        result = args.func(args)
+        if isinstance(result, int):
+            return result
+    # return 0 even when no subcommand to mirror previous behavior
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
