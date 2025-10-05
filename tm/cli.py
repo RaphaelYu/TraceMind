@@ -3,6 +3,7 @@ import argparse
 import fnmatch
 import json
 import os
+import shutil
 import signal
 import sys
 import time
@@ -25,6 +26,24 @@ from tm.runtime.queue import FileWorkQueue, InMemoryWorkQueue
 from tm.runtime.idempotency import IdempotencyStore
 from tm.runtime.queue.manager import TaskQueueManager
 from tm.runtime.retry import load_retry_policy
+
+__path__ = [str(Path(__file__).with_name("cli"))]
+from tm.cli.plugin_verify import run as plugin_verify_run
+
+_TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
+
+def _init_from_template(template: str, project_name: str, *, force: bool) -> Path:
+    template_dir = _TEMPLATE_ROOT / template
+    if not template_dir.is_dir():
+        raise FileNotFoundError(f"Unknown template '{template}'")
+    project_root = Path.cwd() / project_name
+    if project_root.exists():
+        if not project_root.is_dir(): raise FileExistsError(f"Destination '{project_root}' exists and is not a directory")
+        if not force and any(project_root.iterdir()): raise FileExistsError(f"Destination '{project_root}' already exists; use --force to overwrite scaffolding files")
+    else:
+        project_root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(template_dir, project_root, dirs_exist_ok=True)
+    return project_root
 
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
@@ -75,6 +94,13 @@ def _build_hitl_manager(config_path: str) -> HitlManager:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TraceMind CLI")
     sub = parser.add_subparsers(dest="cmd")
+
+    plugin_parser = sub.add_parser("plugin", help="plugin tools")
+    plugin_sub = plugin_parser.add_subparsers(dest="pcmd")
+    plugin_verify = plugin_sub.add_parser("verify", help="verify plugin conformance")
+    plugin_verify.add_argument("group")
+    plugin_verify.add_argument("name")
+    plugin_verify.set_defaults(func=plugin_verify_run)
 
     sp = sub.add_parser("pipeline", help="pipeline tools")
     ssp = sp.add_subparsers(dest="pcmd")
@@ -185,17 +211,15 @@ if __name__ == "__main__":
     init_parser.add_argument("--with-prom", action="store_true", help="include Prometheus hook scaffold")
     init_parser.add_argument("--with-retrospect", action="store_true", help="include Retrospect exporter scaffold")
     init_parser.add_argument("--force", action="store_true", help="overwrite existing scaffold files")
+    init_parser.add_argument("--template", choices=["minimal", "recipe-only"], help="use a project template")
 
     def _cmd_init(args):
         try:
-            init_project(
-                args.project_name,
-                Path.cwd(),
-                with_prom=args.with_prom,
-                with_retrospect=args.with_retrospect,
-                force=args.force,
-            )
-        except FileExistsError as exc:
+            if args.template:
+                _init_from_template(args.template, args.project_name, force=args.force)
+            else:
+                init_project(args.project_name, Path.cwd(), with_prom=args.with_prom, with_retrospect=args.with_retrospect, force=args.force)
+        except (FileExistsError, FileNotFoundError) as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
         else:

@@ -1,34 +1,15 @@
 from __future__ import annotations
-import importlib, os
-from typing import List
 
-from .base import Plugin
+import importlib.metadata as md
 
-def _split_csv(env: str) -> List[str]:
-    return [x.strip() for x in (env or "").split(",") if x.strip()]
 
-def load_plugins() -> List[Plugin]:
-    """
-    Discovery order:
-    1) env TRACE_PLUGINS="pkgA:mod:obj,pkgB.plugin:Plugin"
-       - item can be "package.module:object" or "package.module"
-         (then it must expose 'plugin' variable)
-    2) local dev folder via TRACE_PLUGINS_PATH="plugins_local"
-       - imports as 'plugins_local.richdemo:plugin' etc.
-    """
-    plugs: List[Plugin] = []
-    # explicit list
-    for spec in _split_csv(os.getenv("TRACE_PLUGINS", "")):
-        mod_name, _, obj_name = spec.partition(":")
-        mod = importlib.import_module(mod_name)
-        obj = getattr(mod, obj_name or "plugin")
-        if not isinstance(obj, Plugin):  # runtime Protocol check
-            raise TypeError(f"Loaded object {spec!r} does not implement Plugin protocol")
-        plugs.append(obj)
+class PluginError(RuntimeError):
+    """Raised when a TraceMind plugin cannot be found or loaded."""
 
-    # optional path-based discovery (dev convenience)
-    extra_path = os.getenv("TRACE_PLUGINS_PATH")
-    if extra_path and extra_path not in map(str, __import__("sys").path):
-        __import__("sys").path.append(extra_path)
 
-    return plugs
+def load(group: str, name: str):
+    eps = md.entry_points(group=group)
+    entry = next((ep for ep in eps if ep.name == name), None)
+    if entry is None:
+        raise PluginError(f"plugin not found: {group}:{name}")
+    return entry.load()()

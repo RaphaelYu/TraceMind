@@ -178,3 +178,8 @@ tm workers stop
 ## 📜 License
 
 MIT (for personal and experimental use)
+
+Quickstart:
+tm init demo --template minimal
+cd demo && tm run flows/hello.yaml -i '{"name":"world"}'
+More details: docs/quickstart.md

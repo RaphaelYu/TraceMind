@@ -1,0 +1,13 @@
+flow:
+  id: hello
+  version: "1.0.0"
+  entry: greet
+  steps:
+    - id: greet
+      kind: task
+      hooks:
+        run: steps.impl.hello_greet
+    - id: finish
+      kind: finish
+  edges:
+    - {from: greet, to: finish}

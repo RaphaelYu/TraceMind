@@ -1,0 +1,13 @@
+[runtime]
+mode="direct"
+
+[ai]
+provider="fake"
+timeout_ms=15000
+max_retries=1
+
+[hitl]
+auto_approve=true
+
+[logging]
+level="info"
