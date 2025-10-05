@@ -1,20 +1,41 @@
+# .github/workflows/release.yml
 name: release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'        # 例如 v1.0.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write        # Trusted Publishing 需要
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install -U pip build twine
-      - run: python -m build && twine check dist/*
+
+      - name: Install build tooling
+        run: python -m pip install -U pip build twine
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Check metadata
+        run: twine check dist/*
+
+      # Trusted Publishing 到 PyPI（需要提前在 PyPI 配置 GitHub OIDC 信任）
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+      # （可选）把 dist 上传为 workflow artifact，方便手动下载
       - uses: actions/upload-artifact@v4
         with:
           name: dist
