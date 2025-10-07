@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trace-mind"
-version = "1.0.2"
+version = "1.0.3"
 description = "TraceMind smart agent runtime and tooling"
 readme = "README.md"
 requires-python = ">=3.11"
