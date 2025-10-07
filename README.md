@@ -1,9 +1,13 @@
-[![PyPI](https://img.shields.io/pypi/v/trace-mind.svg)](#)
-# TraceMind
+# TraceMind — AI MAPE-K Autonomous Agent Framework
 
-**TraceMind** – A lightweight, event-sourced smart agent framework.
-It records and reflects every transaction, supports pipeline-based field analysis, static flow export, and interactive summaries/diagnosis/plans.
-Designed with a clean DDD structure, minimal dependencies, and safe container execution.
+TraceMind is a lightweight, event-sourced **autonomous agent runtime** that follows the
+**MAPE-K** loop: **Monitor → Analyze → Plan → Execute** over shared **Knowledge**.
+
+- **Event-Sourced Core** — every state change is an append-only fact (auditable by design).
+- **Static Flow Engine** — declarative flows (YAML/JSON) exportable to DOT/JSON for graphs.
+- **Policy via MCP** — select/update arms locally or over JSON-RPC with timeout & safe fallback.
+- **Smart Layer** — summarize / diagnose / plan / reflect with trace-linked spans.
+- **Ops-Ready** — REST `/api/*`, Prometheus `/metrics`, health `/healthz` `/readyz`.
 
 ---
 
@@ -105,36 +109,47 @@ Agent Evolution Timeline
 
 ## 🚀 Quick Start
 
-### Requirements
-
-* Python 3.11+
-* Standard library only (no third-party dependencies by default)
-
-### Run in development
-
 ```bash
-# clone
-git clone https://github.com/<your-username>/trace-mind.git
-cd trace-mind
+# Install (use venv if you like)
+pip install -U "git+https://github.com/RaphaelYu/TraceMind.git@v1.0.2"
 
-# install and scaffold a demo project
-pip install -e .
+# Version & pipeline health
+tm --version
+tm pipeline analyze
 
-# verify CLI wiring
-which python
-which pip
-which tm
-tm --help
-python -m tm --help
-
+# Scaffold & run a minimal flow
 tm init demo
 cd demo
-
-# execute the sample flow
 tm run flows/hello.yaml -i '{"name":"world"}'
-```
 
-> Tip: if `which tm` does not return a path, activate your virtual environment and rerun `pip install -e .` so the console script is added to your `PATH`.
+# Validate and export the flow graph
+mkdir -p out
+tm pipeline export-dot --out-rules-steps out/rules.dot --out-step-deps out/steps.dot
+
+# Policy: list / verify / (optional) update
+python3 - <<'PY'
+import asyncio
+from tm.policy.adapter import PolicyAdapter
+from tm.policy.local_store import LocalPolicyStore
+
+
+async def main():
+    arms = {
+        "maint.default": {"threshold": 0.72},
+        "maint.backup": {"threshold": 0.6},
+    }
+    store = LocalPolicyStore(arms=arms)
+    adapter = PolicyAdapter(mcp=None, local=store)
+    print("arms:", await adapter.list_arms())
+    baseline = await adapter.get("maint.default")
+    print("before:", baseline)
+    updated = await adapter.update("maint.default", {"threshold": 0.85})
+    print("after:", updated)
+
+
+asyncio.run(main())
+PY
+```
 
 ### Run in container
 
