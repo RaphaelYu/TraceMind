@@ -18,6 +18,7 @@ from .queue.manager import ManagedLease, TaskQueueManager
 from .dlq import DeadLetterStore
 from .retry import load_retry_policy
 from tm.obs import counters
+from tm.kstore import DEFAULT_KSTORE_URL, KStore, open_kstore
 
 LOGGER = logging.getLogger("tm.workers")
 
@@ -282,9 +283,16 @@ class TaskWorkerSupervisor:
         self._monitor_thread: Optional[threading.Thread] = None
         self._running = False
         self._draining = threading.Event()
+        url = os.getenv("TM_KSTORE", DEFAULT_KSTORE_URL)
+        self._kstore_url = url
+        self._kstore: KStore | None = open_kstore(url)
+        self._kstore_closed = False
 
     # ------------------------------------------------------------------
     def start(self) -> None:
+        if self._kstore_closed or self._kstore is None:
+            self._kstore = open_kstore(self._kstore_url)
+            self._kstore_closed = False
         if self._running:
             return
         self._running = True
@@ -322,6 +330,14 @@ class TaskWorkerSupervisor:
         if self._monitor_thread is not None:
             self._monitor_thread.join(timeout=1.0)
             self._monitor_thread = None
+        if self._kstore is not None:
+            try:
+                self._kstore.close()
+            except Exception:  # pragma: no cover - best effort
+                pass
+            finally:
+                self._kstore = None
+                self._kstore_closed = True
 
     def run_forever(self) -> None:  # pragma: no cover - CLI utility
         self.start()
@@ -331,6 +347,12 @@ class TaskWorkerSupervisor:
         except KeyboardInterrupt:
             LOGGER.info("shutdown requested (keyboard interrupt)")
             self.stop()
+
+    @property
+    def kstore(self) -> KStore:
+        if self._kstore is None:
+            raise RuntimeError("knowledge store is closed")
+        return self._kstore
 
     def status(self) -> Dict[int, Dict[str, Any]]:
         with self._lock:

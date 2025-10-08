@@ -1,0 +1,16 @@
+steps:
+  start:
+    next: [branch_a, branch_b, branch_c]
+  branch_a:
+    next: [branch_aa, end]
+  branch_b:
+    next: [branch_bb]
+  branch_c:
+    next: [branch_cc]
+  branch_aa:
+    next: [end]
+  branch_bb:
+    next: [end]
+  branch_cc:
+    next: [end]
+  end: {}

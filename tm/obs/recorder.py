@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from typing import ClassVar, Dict, Optional
 
 from .counters import Registry
 from . import counters
+from tm.kstore import DEFAULT_KSTORE_URL, KStore, open_kstore
 
 
 @dataclass
 class Recorder:
     _registry: Registry = counters.metrics
+    _kstore: KStore | None = field(default=None, repr=False)
     _default: ClassVar[Optional["Recorder"]] = None
 
     @classmethod
@@ -19,6 +22,17 @@ class Recorder:
         if cls._default is None:
             cls._default = cls()
         return cls._default
+
+    def __post_init__(self) -> None:
+        if self._kstore is None:
+            url = os.getenv("TM_KSTORE", DEFAULT_KSTORE_URL)
+            self._kstore = open_kstore(url)
+
+    @property
+    def kstore(self) -> KStore:
+        if self._kstore is None:
+            raise RuntimeError("recorder knowledge store is not available")
+        return self._kstore
 
     # Flow events -----------------------------------------------------
     def on_flow_started(self, flow: str, model: str | None = None) -> None:

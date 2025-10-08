@@ -33,6 +33,7 @@ from tm.runtime.retry import load_retry_policy
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
+from tm.cli.flow import register_flow_commands
 
 _TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
 
@@ -745,6 +746,8 @@ def _build_parser() -> argparse.ArgumentParser:
                 print(f"purged {entry_id}")
 
     dlq_purge.set_defaults(func=_cmd_dlq_purge)
+
+    register_flow_commands(sub)
 
     return parser
 
