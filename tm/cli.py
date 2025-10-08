@@ -140,12 +140,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     def _parse_duration(expr: str) -> timedelta:
         units = {"s": 1, "m": 60, "h": 3600}
+        suffix = expr[-1:]
+        if suffix not in units:
+            raise ValueError(f"Invalid duration '{expr}'")
         try:
-            factor = units[expr[-1]]
             value = float(expr[:-1])
-            return timedelta(seconds=value * factor)
-        except Exception as exc:
+        except ValueError as exc:
             raise ValueError(f"Invalid duration '{expr}'") from exc
+        return timedelta(seconds=value * units[suffix])
 
     def _cmd_metrics_dump(args):
         window = _parse_duration(args.window)
