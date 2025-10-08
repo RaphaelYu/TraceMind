@@ -25,7 +25,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install -e ".[dev,yaml,cron]"
+          python -m pip install pytest pytest-asyncio pytest-cov ruff black mypy PyYAML croniter
+          python -m pip install -e .
 
       - name: Ruff
         run: python -m ruff check .
@@ -63,7 +64,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install -e ".[dev,yaml,cron]"
+          python -m pip install pytest pytest-asyncio pytest-cov PyYAML croniter
+          python -m pip install -e .
 
       - name: Pytest
         run: python -m pytest -q
