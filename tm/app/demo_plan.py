@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Any, List
+from typing import Dict, Any
 from tm.pipeline.engine import StepSpec, Rule, Plan
 
 # Demo steps --------------------------------------------------------------

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Deque, Dict, Iterable, Mapping, Optional
+from typing import Deque, Dict, Iterable, Optional
 
 from tm.flow.runtime import FlowRunRecord
 

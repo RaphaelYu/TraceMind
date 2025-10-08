@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 from .bandit import EpsilonGreedy, UCB1
-from .base import ArmSnapshot, TunerStrategy
+from .base import TunerStrategy
 from tm.obs import counters
 from tm.obs.recorder import Recorder
 

@@ -6,9 +6,9 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
-from .proposals import Change, Proposal
+from .proposals import Proposal
 
 
 @dataclass

@@ -4,7 +4,7 @@ import math
 import random
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Iterable, Mapping, MutableMapping, Optional, Tuple
+from typing import Dict, Iterable, Mapping, Optional, Tuple
 
 from .base import ArmSnapshot, TunerStrategy
 
