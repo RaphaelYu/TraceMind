@@ -113,7 +113,7 @@ Agent Evolution Timeline
 
 ```bash
 # Install (use venv if you like)
-pip install -U "git+https://github.com/RaphaelYu/TraceMind.git@v1.0.3"
+pip install -U "git+https://github.com/RaphaelYu/TraceMind.git@v1.0.4"
 
 # Version & pipeline health
 tm --version
