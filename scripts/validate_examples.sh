@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-CFG="-c examples/validation.toml"
+TM_CFG="examples/validation.toml"
 FLOW="examples/agents/data_cleanup/flows/data_cleanup.yaml"
 INPUT='{"input_file":"examples/agents/data_cleanup/data/sample-small.csv"}'
-timeout 120s tm ${CFG} run "${FLOW}" -i "${INPUT}" --direct
+
+# shellcheck disable=SC2086 # we intentionally want word splitting for INPUT JSON
+timeout 120s tm --config "${TM_CFG}" run "${FLOW}" -i "${INPUT}" --direct
 echo "OK: data_cleanup example finished"

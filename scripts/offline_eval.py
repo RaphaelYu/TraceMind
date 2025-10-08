@@ -263,7 +263,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     deltas = _compute_deltas(baseline_metrics, recent_metrics)
 
     table = _format_table(recent_metrics, baseline_metrics, deltas)
-    print(table)
+    try:
+        print(table)
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write((table + "\n").encode("utf-8", errors="replace"))
 
     params = {
         "baseline_sec": args.baseline_sec,
