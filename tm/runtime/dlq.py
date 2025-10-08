@@ -29,7 +29,9 @@ class DeadLetterStore:
         for path in (self._pending_dir, self._requeued_dir, self._purged_dir):
             path.mkdir(parents=True, exist_ok=True)
 
-    def append(self, *, flow_id: str, task: Mapping[str, Any], error: Mapping[str, Any], attempt: int) -> DeadLetterRecord:
+    def append(
+        self, *, flow_id: str, task: Mapping[str, Any], error: Mapping[str, Any], attempt: int
+    ) -> DeadLetterRecord:
         ts = time.time()
         entry_id = f"dlq-{int(ts * 1000):013d}-{os.getpid():05d}"
         record = {

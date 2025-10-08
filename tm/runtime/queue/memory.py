@@ -134,11 +134,7 @@ class InMemoryWorkQueue(WorkQueue):
 
     def oldest_available_at(self) -> Optional[float]:
         with self._lock:
-            candidates = [
-                entry.available_at
-                for entry in self._entries.values()
-                if entry.token is None
-            ]
+            candidates = [entry.available_at for entry in self._entries.values() if entry.token is None]
         if not candidates:
             return None
         return min(candidates)

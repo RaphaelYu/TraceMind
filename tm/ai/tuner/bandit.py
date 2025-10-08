@@ -132,6 +132,7 @@ class UCB1(_BanditStrategy):
         if total_pulls == 0:
             total_pulls = 1
         log_total = math.log(total_pulls)
+
         def ucb_value(arm_id: str) -> float:
             arm = state.arms[arm_id]
             bonus = 0.0

@@ -1,6 +1,7 @@
 import queue
 import json
 
+
 class SSEHub:
     def __init__(self):
         self._clients = set()

@@ -28,13 +28,10 @@ def test_mcp_recipe_call_and_signal():
     build_fn(ctx)
     call_fn(ctx)
 
-    assert ctx["clients"]["mcp"].calls == [
-        ("files", "list", {"path": "/tmp"})
-    ]
+    assert ctx["clients"]["mcp"].calls == [("files", "list", {"path": "/tmp"})]
     assert ctx["result"] == {"ok": True, "params": {"path": "/tmp"}}
 
     signal_fn(ctx)
 
     assert hub.poll("REQ-2") == {"status": "ready", "data": {"ok": True, "params": {"path": "/tmp"}}}
     assert ctx["response"] == {"status": "ready", "data": {"ok": True, "params": {"path": "/tmp"}}}
-

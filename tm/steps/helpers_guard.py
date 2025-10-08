@@ -15,7 +15,11 @@ def run(ctx: Mapping[str, Any], state: Any) -> Any:
     rules = config.get("rules")
     if not rules:
         return state
-    decision = governance.evaluate_custom_guard(rules, state if isinstance(state, Mapping) else {"value": state}, context={"flow": ctx.get("flow"), "step": ctx.get("step")})
+    decision = governance.evaluate_custom_guard(
+        rules,
+        state if isinstance(state, Mapping) else {"value": state},
+        context={"flow": ctx.get("flow"), "step": ctx.get("step")},
+    )
     if decision.allowed:
         return state
     violation = decision.first or (decision.violations[0] if decision.violations else None)

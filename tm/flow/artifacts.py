@@ -70,7 +70,7 @@ def _edges(spec: FlowSpec) -> List[dict[str, str]]:
 def _build_dot(spec: FlowSpec, nodes: Iterable[dict], edges: Iterable[dict]) -> str:
     lines: List[str] = []
     flow_id = spec.flow_id or spec.name
-    header = f"digraph \"{flow_id}@{spec.flow_revision()}\" {{"
+    header = f'digraph "{flow_id}@{spec.flow_revision()}" {{'
     lines.append(header)
     lines.append("  node [shape=box];")
 
@@ -83,14 +83,14 @@ def _build_dot(spec: FlowSpec, nodes: Iterable[dict], edges: Iterable[dict]) -> 
         label = f"{name}\\n{step_id}" if step_id else name
         attrs = [f'label="{label}"']
         if entry and name == entry:
-            attrs.append('shape=doubleoctagon')
+            attrs.append("shape=doubleoctagon")
         lines.append(f"  \"{name}\" [{', '.join(attrs)}];")
 
     for edge in edges:
         src = edge.get("from")
         dst = edge.get("to")
         if src and dst:
-            lines.append(f"  \"{src}\" -> \"{dst}\";")
+            lines.append(f'  "{src}" -> "{dst}";')
 
     lines.append("}")
     return "\n".join(lines) + "\n"

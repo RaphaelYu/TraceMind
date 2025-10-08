@@ -202,7 +202,7 @@ def _format_table(
         f"{'cost_usd':>10} {'reward':>9} {'Δreward':>9}"
     )
     lines = [headers, "-" * len(headers)]
-    for (binding, arm) in sorted(recent.keys() | baseline.keys(), key=lambda item: (item[0], item[1])):
+    for binding, arm in sorted(recent.keys() | baseline.keys(), key=lambda item: (item[0], item[1])):
         rec = recent.get((binding, arm), _Metrics()).as_dict()
         delta = deltas.get((binding, arm), {})
         lines.append(
@@ -227,7 +227,9 @@ def _write_json(
         arm_bucket = binding_bucket.setdefault(arm, {})
         arm_bucket["baseline"] = baseline.get(key, _Metrics()).as_dict()
         arm_bucket["recent"] = recent.get(key, _Metrics()).as_dict()
-        arm_bucket["delta"] = deltas.get(key, {"ok_rate": 0.0, "avg_reward": 0.0, "avg_latency_ms": 0.0, "avg_cost_usd": 0.0, "n": 0.0})
+        arm_bucket["delta"] = deltas.get(
+            key, {"ok_rate": 0.0, "avg_reward": 0.0, "avg_latency_ms": 0.0, "avg_cost_usd": 0.0, "n": 0.0}
+        )
     payload = {"params": params, "bindings": structured}
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

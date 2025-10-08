@@ -95,7 +95,11 @@ class PolicyStore:
 
     def _write(self, snapshot: PolicySnapshot) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = self._path.with_suffix(self._path.suffix + ".tmp") if self._path.suffix else self._path.parent / (self._path.name + ".tmp")
+        temp_path = (
+            self._path.with_suffix(self._path.suffix + ".tmp")
+            if self._path.suffix
+            else self._path.parent / (self._path.name + ".tmp")
+        )
         payload = {
             "version": snapshot.version,
             "policies": snapshot.policies,

@@ -66,6 +66,7 @@ def _init_from_template(template: str, project_name: str, *, force: bool) -> Pat
     shutil.copytree(template_dir, project_root, dirs_exist_ok=True)
     return project_root
 
+
 def _cmd_pipeline_analyze(args):
     plan = build_plan()
     focus = args.focus or []
@@ -94,6 +95,7 @@ def _cmd_pipeline_analyze(args):
     if rep.coverage.focus_uncovered:
         print("  focus_uncovered:", rep.coverage.focus_uncovered)
 
+
 def _cmd_pipeline_export_dot(args):
     plan = build_plan()
     rep = analyze_plan(plan)
@@ -101,8 +103,7 @@ def _cmd_pipeline_export_dot(args):
         f.write(rep.dot_rules_steps)
     with open(args.out_step_deps, "w", encoding="utf-8") as f:
         f.write(rep.dot_step_deps)
-    print("DOT files written:",
-          args.out_rules_steps, "and", args.out_step_deps)
+    print("DOT files written:", args.out_rules_steps, "and", args.out_step_deps)
 
 
 def _build_hitl_manager(config_path: str) -> HitlManager:
@@ -111,6 +112,7 @@ def _build_hitl_manager(config_path: str) -> HitlManager:
     if not hitl_cfg.enabled:
         raise RuntimeError("HITL approvals are disabled in configuration")
     return HitlManager(hitl_cfg, audit=AuditTrail(cfg.audit))
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tm", description="TraceMind CLI")
@@ -187,18 +189,20 @@ def _build_parser() -> argparse.ArgumentParser:
                 print("(no pending approvals)")
                 return
             for record in records:
-                print(json.dumps(
-                    {
-                        "approval_id": record.approval_id,
-                        "flow": record.flow,
-                        "step": record.step,
-                        "reason": record.reason,
-                        "actors": list(record.actors),
-                        "created_at": record.created_at,
-                        "ttl_ms": record.ttl_ms,
-                    },
-                    ensure_ascii=False,
-                ))
+                print(
+                    json.dumps(
+                        {
+                            "approval_id": record.approval_id,
+                            "flow": record.flow,
+                            "step": record.step,
+                            "reason": record.reason,
+                            "actors": list(record.actors),
+                            "created_at": record.created_at,
+                            "ttl_ms": record.ttl_ms,
+                        },
+                        ensure_ascii=False,
+                    )
+                )
             return
 
         if not args.approval_id or not args.decision:
@@ -216,15 +220,17 @@ def _build_parser() -> argparse.ArgumentParser:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
         else:
-            print(json.dumps(
-                {
-                    "approval_id": record.approval_id,
-                    "decision": record.status,
-                    "actor": record.decided_by,
-                    "note": record.note,
-                },
-                ensure_ascii=False,
-            ))
+            print(
+                json.dumps(
+                    {
+                        "approval_id": record.approval_id,
+                        "decision": record.status,
+                        "actor": record.decided_by,
+                        "note": record.note,
+                    },
+                    ensure_ascii=False,
+                )
+            )
 
     approve_parser.set_defaults(func=_cmd_approve)
 
@@ -240,7 +246,13 @@ def _build_parser() -> argparse.ArgumentParser:
             if args.template:
                 _init_from_template(args.template, args.project_name, force=args.force)
             else:
-                init_project(args.project_name, Path.cwd(), with_prom=args.with_prom, with_retrospect=args.with_retrospect, force=args.force)
+                init_project(
+                    args.project_name,
+                    Path.cwd(),
+                    with_prom=args.with_prom,
+                    with_retrospect=args.with_retrospect,
+                    force=args.force,
+                )
         except (FileExistsError, FileNotFoundError) as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
@@ -357,7 +369,9 @@ def _build_parser() -> argparse.ArgumentParser:
         path = Path(arg)
         if path.is_file():
             if yaml is None:
-                raise RuntimeError("PyYAML is required to load flow specifications; install the 'yaml' extra, e.g. `pip install trace-mind[yaml]`.")
+                raise RuntimeError(
+                    "PyYAML is required to load flow specifications; install the 'yaml' extra, e.g. `pip install trace-mind[yaml]`."
+                )
             try:
                 data = yaml.safe_load(path.read_text(encoding="utf-8"))
             except Exception as exc:
@@ -442,7 +456,9 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Example:\n  tm workers start -n 4 --queue file --lease-ms 30000""",
     )
-    workers_start.add_argument("-n", "--num", dest="worker_count", type=int, default=1, help="number of worker processes")
+    workers_start.add_argument(
+        "-n", "--num", dest="worker_count", type=int, default=1, help="number of worker processes"
+    )
     workers_start.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend")
     workers_start.add_argument("--queue-dir", default="data/queue", help="queue directory (file backend)")
     workers_start.add_argument("--idempotency-dir", default="data/idempotency", help="idempotency cache directory")
@@ -456,7 +472,9 @@ def _build_parser() -> argparse.ArgumentParser:
     workers_start.add_argument("--batch", type=int, default=1, help="tasks to lease per fetch")
     workers_start.add_argument("--poll", type=float, default=0.5, help="poll interval when idle (seconds)")
     workers_start.add_argument("--heartbeat", type=float, default=5.0, help="heartbeat interval (seconds)")
-    workers_start.add_argument("--heartbeat-timeout", type=float, default=15.0, help="heartbeat timeout before restart (seconds)")
+    workers_start.add_argument(
+        "--heartbeat-timeout", type=float, default=15.0, help="heartbeat timeout before restart (seconds)"
+    )
     workers_start.add_argument("--result-ttl", type=float, default=3600.0, help="idempotency result TTL (seconds)")
     workers_start.add_argument("--config", help="config file for retry policies", default="trace_config.toml")
     workers_start.add_argument("--drain-grace", type=float, default=10.0, help="grace period (s) when draining")
@@ -684,7 +702,8 @@ def _build_parser() -> argparse.ArgumentParser:
     def _cmd_dlq_requeue(args):
         store = DeadLetterStore(args.dlq_dir)
         matches = [
-            record for record in store.list()
+            record
+            for record in store.list()
             if record.entry_id == args.pattern or fnmatch.fnmatch(record.entry_id, args.pattern)
         ]
         if not matches:
@@ -739,7 +758,9 @@ def _build_parser() -> argparse.ArgumentParser:
             print(f"no DLQ entries match '{args.pattern}'", file=sys.stderr)
             sys.exit(1)
         if not args.yes:
-            prompt = f"Permanently purge {len(matches)} entr{'y' if len(matches)==1 else 'ies'}? type 'purge' to confirm: "
+            prompt = (
+                f"Permanently purge {len(matches)} entr{'y' if len(matches)==1 else 'ies'}? type 'purge' to confirm: "
+            )
             response = input(prompt)
             if response.strip().lower() != "purge":
                 print("aborted")

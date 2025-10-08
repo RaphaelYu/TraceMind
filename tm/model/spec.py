@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict,  Mapping, MutableMapping, Optional, Sequence, Set, TYPE_CHECKING
+from typing import Any, Callable, Dict, Mapping, MutableMapping, Optional, Sequence, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing aid only
     from .entity import Entity

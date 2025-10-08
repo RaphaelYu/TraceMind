@@ -35,15 +35,9 @@ async def test_step_events_preserve_order():
         return state
 
     spec = FlowSpec(name="ordered")
-    spec.add_step(
-        StepDef("a", Operation.TASK, next_steps=("b",), run=run_step)
-    )
-    spec.add_step(
-        StepDef("b", Operation.TASK, next_steps=("c",), run=run_step)
-    )
-    spec.add_step(
-        StepDef("c", Operation.TASK, next_steps=(), run=run_step)
-    )
+    spec.add_step(StepDef("a", Operation.TASK, next_steps=("b",), run=run_step))
+    spec.add_step(StepDef("b", Operation.TASK, next_steps=("c",), run=run_step))
+    spec.add_step(StepDef("c", Operation.TASK, next_steps=(), run=run_step))
 
     sink = ListTraceSink()
     runtime = FlowRuntime(

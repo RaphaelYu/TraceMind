@@ -1,5 +1,6 @@
 from typing import Callable, List
 
+
 class EventBus:
     def __init__(self):
         self._subs: List[Callable[[object], None]] = []

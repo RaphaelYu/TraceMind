@@ -1,5 +1,6 @@
 from collections import Counter
 
+
 class Metrics:
     def __init__(self):
         self.c = Counter()

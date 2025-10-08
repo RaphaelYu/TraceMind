@@ -10,7 +10,7 @@ import signal
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any,  Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from .idempotency import IdempotencyResult, IdempotencyStore
 from .queue import FileWorkQueue, InMemoryWorkQueue, WorkQueue

@@ -1,2 +1,1 @@
 """Pipeline package initialization."""
-

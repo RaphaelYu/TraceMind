@@ -31,34 +31,43 @@ async def test_lifecycle_hooks_execute_in_order(async_before, async_run, async_a
 
     def make_before():
         if async_before:
+
             async def before(ctx):
                 events.append(("before", ctx["step"]))
+
             return before
 
         def before(ctx):
             events.append(("before", ctx["step"]))
+
         return before
 
     def make_run():
         if async_run:
+
             async def run(ctx, payload):
                 events.append(("run", ctx["step"]))
                 return {"value": payload.get("value", 0) + 1}
+
             return run
 
         def run(ctx, payload):
             events.append(("run", ctx["step"]))
             return {"value": payload.get("value", 0) + 1}
+
         return run
 
     def make_after():
         if async_after:
+
             async def after(ctx, output):
                 events.append(("after", ctx["step"], output["value"]))
+
             return after
 
         def after(ctx, output):
             events.append(("after", ctx["step"], output["value"]))
+
         return after
 
     spec = FlowSpec(name="hooked")

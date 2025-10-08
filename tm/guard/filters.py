@@ -129,6 +129,7 @@ def register_guard(name: str) -> Callable[[GuardHandler], GuardHandler]:
 # Built-in handlers
 # ---------------------------------------------------------------------------
 
+
 def _rule_length_max(rule: GuardRule, values: Sequence[Any], _: Mapping[str, Any]) -> Iterable[GuardViolation]:
     try:
         limit = int(rule.options.get("value"))
@@ -216,6 +217,7 @@ def _rule_deny_keywords(rule: GuardRule, values: Sequence[Any], _: Mapping[str, 
 # ---------------------------------------------------------------------------
 # Path resolution helpers
 # ---------------------------------------------------------------------------
+
 
 def _extract_values(data: Any, path: Optional[str]) -> List[Any]:
     if not path:

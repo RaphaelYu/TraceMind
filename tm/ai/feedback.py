@@ -32,13 +32,18 @@ class FeedbackEvent:
             cost_usd=_coerce_float(payload.get("cost_usd")),
             user_rating=_coerce_float(payload.get("user_rating")),
             task_success=_coerce_float(payload.get("task_success")),
-            extras={k: v for k, v in payload.items() if k not in {
-                "outcome",
-                "duration_ms",
-                "cost_usd",
-                "user_rating",
-                "task_success",
-            }},
+            extras={
+                k: v
+                for k, v in payload.items()
+                if k
+                not in {
+                    "outcome",
+                    "duration_ms",
+                    "cost_usd",
+                    "user_rating",
+                    "task_success",
+                }
+            },
         )
 
 

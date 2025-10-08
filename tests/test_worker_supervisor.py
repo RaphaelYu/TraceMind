@@ -81,7 +81,9 @@ jitter_ms = 0
         processed = []
         while time.time() < deadline:
             if result_file.exists():
-                processed = [json.loads(line) for line in result_file.read_text(encoding="utf-8").strip().splitlines() if line]
+                processed = [
+                    json.loads(line) for line in result_file.read_text(encoding="utf-8").strip().splitlines() if line
+                ]
                 if len(processed) >= 5:
                     break
             time.sleep(0.1)

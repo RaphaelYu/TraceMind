@@ -26,14 +26,16 @@ import time
 import uuid
 import networkx as nx
 
+
 # =============================================================
 # 0) Public enums & dataclasses
 # =============================================================
 class NodeKind(Enum):
-    TASK = auto()      # run an operator
-    FINISH = auto()    # terminal marker
-    SWITCH = auto()    # route by key
+    TASK = auto()  # run an operator
+    FINISH = auto()  # terminal marker
+    SWITCH = auto()  # route by key
     PARALLEL = auto()  # run multiple operators concurrently
+
 
 @dataclass
 class Step:
@@ -46,18 +48,22 @@ class Step:
       - PARALLEL: {"uses": ["op.a", "op.b"], "max_workers": 4}
       - Common policies: retry/timeout, before/after checks (see below)
     """
+
     id: str
     kind: NodeKind
     uses: Optional[str] = None
     cfg: Dict[str, Any] = field(default_factory=dict)
 
+
 @dataclass
 class ExecContext:
     """Execution context provided to operators and checks."""
+
     flow_name: str
     trace_id: str
     vars: Dict[str, Any] = field(default_factory=dict)
     # You can extend this at Engine instantiation time (e.g., ctx.logger / ctx.clients)
+
 
 @dataclass
 class StepResult:
@@ -66,10 +72,12 @@ class StepResult:
     error: Optional[str] = None
     duration_ms: float = 0.0
 
+
 # =============================================================
 # 1) Operator registry (+ metadata for static race checks)
 # =============================================================
 OperatorFn = Callable[[ExecContext, Dict[str, Any]], Dict[str, Any]]
+
 
 class OperatorRegistry:
     def __init__(self):
@@ -80,11 +88,13 @@ class OperatorRegistry:
         """Decorator to register a function under `name`.
         Function signature: fn(ctx: ExecContext, inputs: Dict[str, Any]) -> Dict[str, Any]
         """
+
         def deco(fn: OperatorFn):
             if name in self._ops:
                 raise ValueError(f"Operator already registered: {name}")
             self._ops[name] = fn
             return fn
+
         return deco
 
     def set_meta(
@@ -113,12 +123,14 @@ class OperatorRegistry:
             raise KeyError(f"Unknown operator: {name}")
         return self._ops[name]
 
+
 registry = OperatorRegistry()
 
 # =============================================================
 # 2) Check registry (before/after)
 # =============================================================
 CheckFn = Callable[[ExecContext, Dict[str, Any]], None]
+
 
 class CheckRegistry:
     def __init__(self):
@@ -130,6 +142,7 @@ class CheckRegistry:
                 raise ValueError(f"Check already registered: {name}")
             self._checks[name] = fn
             return fn
+
         return deco
 
     def get(self, name: str) -> CheckFn:
@@ -137,7 +150,9 @@ class CheckRegistry:
             raise KeyError(f"Unknown check: {name}")
         return self._checks[name]
 
+
 checks = CheckRegistry()
+
 
 # =============================================================
 # 3) FlowGraph: minimal DAG wrapper over networkx
@@ -203,20 +218,25 @@ class FlowGraph:
         if self._entry is None:
             self._entry = step.id
 
+
 # Tiny sugar to chain edges: chain(f, "a", "b", "c")
 def chain(flow: FlowGraph, *ids: str) -> str:
     for i in range(len(ids) - 1):
         flow.link(ids[i], ids[i + 1])
     return ids[-1]
 
+
 # =============================================================
 # 4) FlowBase & FlowRepo (to select/instantiate flows)
 # =============================================================
 class FlowBase:
     """Recommended base class: implement build(self, **params) -> FlowGraph."""
+
     name: str = ""
+
     def build(self, **params) -> FlowGraph:  # override in subclasses
         raise NotImplementedError
+
 
 class FlowRepo:
     def __init__(self):
@@ -239,7 +259,9 @@ class FlowRepo:
     def list(self) -> List[str]:
         return sorted(self._flows.keys())
 
+
 flowrepo = FlowRepo()
+
 
 # =============================================================
 # 5) Static Analyzer (cycles, reachability, operator existence, basic race)
@@ -277,7 +299,9 @@ class StaticAnalyzer:
                 succ = list(g.successors(n))
                 if not succ:
                     issues.append({"kind": "switch_no_branch", "node": n})
-                has_default = any(g.get_edge_data(n, s, {}).get("case") == step.cfg.get("default", "_DEFAULT") for s in succ)
+                has_default = any(
+                    g.get_edge_data(n, s, {}).get("case") == step.cfg.get("default", "_DEFAULT") for s in succ
+                )
                 if not has_default:
                     issues.append({"kind": "switch_no_default", "node": n, "msg": "Consider adding default branch"})
             if step.kind == NodeKind.PARALLEL:
@@ -293,12 +317,14 @@ class StaticAnalyzer:
             metas = [(u, self.registry.meta(u)) for u in uses]
             for i in range(len(metas)):
                 ui, mi = metas[i]
-                for j in range(i+1, len(metas)):
+                for j in range(i + 1, len(metas)):
                     uj, mj = metas[j]
                     # external resource conflicts
                     ext_conf = mi["externals"] & mj["externals"]
                     if ext_conf:
-                        issues.append({"kind": "race_external", "node": n, "ops": [ui, uj], "resource": sorted(ext_conf)})
+                        issues.append(
+                            {"kind": "race_external", "node": n, "ops": [ui, uj], "resource": sorted(ext_conf)}
+                        )
                     # write/write on same logical key
                     ww = mi["writes"] & mj["writes"]
                     if ww:
@@ -309,11 +335,13 @@ class StaticAnalyzer:
                         issues.append({"kind": "race_read_write", "node": n, "ops": [ui, uj], "keys": sorted(rw)})
         return issues
 
+
 # =============================================================
 # 6) Airflow-style Tracer (no Airflow deps)
 # =============================================================
 class AirflowStyleTracer:
     """Collects run artifacts in an Airflow-like shape."""
+
     def __init__(self, dag_id_prefix: str = "tm_flow", capture_outputs: bool = True, xcom_bytes_limit: int = 16_000):
         self.dag_id_prefix = dag_id_prefix
         self.capture_outputs = capture_outputs
@@ -346,9 +374,9 @@ class AirflowStyleTracer:
             "task_id": step.id,
             "try_number": 1,
             "state": "success" if result.status == "ok" else "failed",
-            "start_date": now - (result.duration_ms/1000.0),
+            "start_date": now - (result.duration_ms / 1000.0),
             "end_date": now,
-            "duration": result.duration_ms/1000.0,
+            "duration": result.duration_ms / 1000.0,
             "operator": step.uses,
             "kind": step.kind.name,
             "in": inputs,
@@ -356,6 +384,7 @@ class AirflowStyleTracer:
         }
         if self.capture_outputs and result.output is not None:
             import json
+
             s = json.dumps(result.output, ensure_ascii=False)
             if len(s) > self.xcom_bytes_limit:
                 ti["out"] = {"truncated": True, "size": len(s)}
@@ -376,22 +405,26 @@ class AirflowStyleTracer:
         edges = self._edges.get(run_id, [])
         return dag_run, tis, edges
 
+
 # =============================================================
 # 7) Tiny policies (retry + timeout) & Engine
 # =============================================================
 @dataclass
 class RetryPolicy:
-    max_attempts: int = 1         # 1 = no retry
-    backoff_ms: int = 0           # fixed backoff
+    max_attempts: int = 1  # 1 = no retry
+    backoff_ms: int = 0  # fixed backoff
+
 
 @dataclass
 class TimeoutPolicy:
     timeout_ms: Optional[int] = None  # None = no timeout
 
+
 @dataclass
 class StepPolicies:
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     timeout: TimeoutPolicy = field(default_factory=TimeoutPolicy)
+
 
 def _parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
     r = cfg.get("retry", {})
@@ -407,6 +440,7 @@ def _parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
             timeout_ms=None if t in (None, "", 0) else int(t),
         ),
     )
+
 
 class Engine:
     def __init__(self, tracer: Optional[Any] = None):
@@ -435,8 +469,11 @@ class Engine:
         for name in names:
             checks.get(name)(ctx, call_in)
 
-    def _run_operator(self, op_name: str, ctx: ExecContext, call_in: Dict[str, Any], pol: StepPolicies) -> Dict[str, Any]:
+    def _run_operator(
+        self, op_name: str, ctx: ExecContext, call_in: Dict[str, Any], pol: StepPolicies
+    ) -> Dict[str, Any]:
         from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
         attempts = 0
         last_exc: Optional[Exception] = None
         while attempts < pol.retry.max_attempts:
@@ -517,17 +554,20 @@ class Engine:
 
             elif step.kind is NodeKind.PARALLEL:
                 from concurrent.futures import ThreadPoolExecutor, as_completed
+
                 uses = list(step.cfg.get("uses", []))
                 max_workers = int(step.cfg.get("max_workers", 4))
                 call_in_base = {"inputs": inputs, "cfg": step.cfg, "vars": ctx.vars}
                 pol = _parse_policies_from_cfg(step.cfg)
                 outputs: Dict[str, Any] = {}
                 try:
+
                     def _one(op_name: str):
                         self._run_checks(step.cfg.get("before"), ctx, call_in_base)
                         out = self._run_operator(op_name, ctx, call_in_base, pol)
                         self._run_checks(step.cfg.get("after"), ctx, {"**out": out, **call_in_base})
                         return op_name, out
+
                     with ThreadPoolExecutor(max_workers=max_workers) as ex:
                         futs = {ex.submit(_one, u): u for u in uses}
                         for fut in as_completed(futs):
@@ -556,6 +596,7 @@ class Engine:
 
         return run_id, ctx.vars
 
+
 # =============================================================
 # 8) Demo operators & flows
 # =============================================================
@@ -565,26 +606,44 @@ def op_validate_payload(ctx: ExecContext, call_in: Dict[str, Any]) -> Dict[str, 
     if not isinstance(payload, dict):
         raise ValueError("payload must be a dict")
     return {"ok": bool(payload), "fields": list(payload.keys())}
+
+
 registry.set_meta("core.validate_payload", reads=["inputs.payload"], writes=["vars.validate"], externals=[], pure=True)
+
 
 @registry.operator("adapters.echo.annotate")
 def op_echo_annotate(ctx: ExecContext, call_in: Dict[str, Any]) -> Dict[str, Any]:
     payload = call_in["inputs"].get("payload", {})
     validated = call_in["vars"].get("validate", {})
     return {"payload": payload, "validated": validated, "trace": ctx.trace_id}
-registry.set_meta("adapters.echo.annotate", reads=["inputs.payload", "vars.validate"], writes=["vars.annotate"], externals=[], pure=True)
+
+
+registry.set_meta(
+    "adapters.echo.annotate",
+    reads=["inputs.payload", "vars.validate"],
+    writes=["vars.annotate"],
+    externals=[],
+    pure=True,
+)
+
 
 @registry.operator("parallel.add_one")
 def op_add_one(ctx: ExecContext, call_in: Dict[str, Any]) -> Dict[str, Any]:
     x = call_in["inputs"].get("x", 0)
     return {"x_plus_one": x + 1}
+
+
 registry.set_meta("parallel.add_one", reads=["inputs.x"], writes=["vars.fanout.add_one"], externals=[], pure=True)
+
 
 @registry.operator("parallel.square")
 def op_square(ctx: ExecContext, call_in: Dict[str, Any]) -> Dict[str, Any]:
     x = call_in["inputs"].get("x", 0)
     return {"x_square": x * x}
+
+
 registry.set_meta("parallel.square", reads=["inputs.x"], writes=["vars.fanout.square"], externals=[], pure=True)
+
 
 # ---- Checks (demo) ----
 @checks.check("chk.require_payload")
@@ -592,14 +651,17 @@ def chk_require_payload(ctx: ExecContext, call_in: Dict[str, Any]) -> None:
     if not call_in.get("inputs", {}).get("payload"):
         raise ValueError("missing payload")
 
+
 @checks.check("chk.emit_metric")
 def chk_emit_metric(ctx: ExecContext, call_in: Dict[str, Any]) -> None:
     # attach your logger/metrics here if needed
     return
 
+
 # ---- Flow definitions ----
 class DemoSwitchParallel(FlowBase):
     name = "demo_switch_parallel"
+
     def build(self, **params) -> FlowGraph:
         f = FlowGraph(self.name)
         v = f.task("validate", uses="core.validate_payload", before=["chk.require_payload"])  # before-check
@@ -620,13 +682,16 @@ class DemoSwitchParallel(FlowBase):
         f.set_entry(v)
         return f
 
+
 # Register into the repo
 flowrepo.register(DemoSwitchParallel)
 
 # Also expose a convenience builder
 
+
 def build_demo_flow() -> FlowGraph:
     return DemoSwitchParallel().build()
+
 
 # =============================================================
 # 9) CLI / quick test
@@ -647,4 +712,3 @@ if __name__ == "__main__":
     run_id, ctx_vars = engine.run(flow, inputs={"payload": {"name": "Alice"}, "x": 3})
 
     dag_run, task_instances, edges = tracer.get_run(run_id)
-   

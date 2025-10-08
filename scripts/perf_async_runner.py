@@ -100,8 +100,12 @@ async def main() -> None:
     print(f"rejected        : {rejected}")
     print(f"errors          : {errors}")
     print("--- Latency ---")
-    print(f"queue_ms p50/p95/p99 : {stats['queued_ms_p50']:.2f} / {stats['queued_ms_p95']:.2f} / {stats['queued_ms_p99']:.2f}")
-    print(f"exec_ms  p50/p95/p99 : {stats['exec_ms_p50']:.2f} / {stats['exec_ms_p95']:.2f} / {stats['exec_ms_p99']:.2f}")
+    print(
+        f"queue_ms p50/p95/p99 : {stats['queued_ms_p50']:.2f} / {stats['queued_ms_p95']:.2f} / {stats['queued_ms_p99']:.2f}"
+    )
+    print(
+        f"exec_ms  p50/p95/p99 : {stats['exec_ms_p50']:.2f} / {stats['exec_ms_p95']:.2f} / {stats['exec_ms_p99']:.2f}"
+    )
     print("--- Queue ---")
     print(f"queue_depth peak/current : {stats['queue_depth_peak']} / {stats['queue_depth_current']}")
     print(f"rejected_reason          : {stats['rejected_reason']}")

@@ -4,20 +4,26 @@ from typing import Optional, Dict, Any
 
 from .operations import ResponseMode
 
+
 @dataclass
 class RetryPolicy:
     """Simple retry settings for a step."""
-    max_attempts: int = 1          # 1 = no retry
-    backoff_ms: int = 0            # fixed backoff between attempts
+
+    max_attempts: int = 1  # 1 = no retry
+    backoff_ms: int = 0  # fixed backoff between attempts
+
 
 @dataclass
 class TimeoutPolicy:
     """Simple timeout settings for a step."""
+
     timeout_ms: Optional[int] = None  # None = no timeout
+
 
 @dataclass
 class StepPolicies:
     """Bundle of policies applied to a step."""
+
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     timeout: TimeoutPolicy = field(default_factory=TimeoutPolicy)
 
@@ -30,6 +36,7 @@ class FlowPolicies:
     max_concurrency: Optional[int] = None
     allow_deferred: bool = True
     short_wait_s: float = 0.0
+
 
 def parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
     """

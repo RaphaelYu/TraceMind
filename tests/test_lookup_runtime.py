@@ -61,6 +61,7 @@ def test_flow_runtime_lookup_and_registration():
     with pytest.raises(KeyError):
         runtime.choose_flow("missing")
 
+
 @pytest.mark.asyncio
 async def test_deferred_flow_records_signal_payload():
     hub = RecordingHub()
@@ -86,6 +87,7 @@ async def test_deferred_flow_records_signal_payload():
     assert stored is not None and stored[1]["req_id"] == "REQ-1"
 
     await runtime.aclose()
+
 
 @pytest.mark.asyncio
 async def test_deferred_flow_ready_when_signal_precedes_run():

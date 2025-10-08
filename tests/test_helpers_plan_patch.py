@@ -9,10 +9,12 @@ def test_plan_has_patch_detects_patch():
 
 
 def test_apply_patch_updates_document():
-    doc = {"steps": [
-        {"inputs": {"value": 1}},
-        {"inputs": {"value": 2}},
-    ]}
+    doc = {
+        "steps": [
+            {"inputs": {"value": 1}},
+            {"inputs": {"value": 2}},
+        ]
+    }
     patch = {"ops": [{"op": "replace", "path": "/steps/1/inputs/value", "value": 42}]}
     updated = apply_patch(doc, patch)
     assert updated["steps"][1]["inputs"]["value"] == 42

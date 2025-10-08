@@ -114,63 +114,75 @@ def analyze(
             step_id = event.get("step_id")
             flow_map = artifacts.get(flow)
             if not flow_map:
-                anomalies.append({
-                    "run_id": run_id,
-                    "reason": "FLOW_NOT_FOUND",
-                    "flow": flow,
-                    "flow_rev": flow_rev,
-                    "step": step,
-                })
+                anomalies.append(
+                    {
+                        "run_id": run_id,
+                        "reason": "FLOW_NOT_FOUND",
+                        "flow": flow,
+                        "flow_rev": flow_rev,
+                        "step": step,
+                    }
+                )
                 continue
             step_meta = flow_map.get(flow_rev)
             if step_meta is None:
-                anomalies.append({
-                    "run_id": run_id,
-                    "reason": "REV_NOT_FOUND",
-                    "flow": flow,
-                    "flow_rev": flow_rev,
-                    "step": step,
-                })
+                anomalies.append(
+                    {
+                        "run_id": run_id,
+                        "reason": "REV_NOT_FOUND",
+                        "flow": flow,
+                        "flow_rev": flow_rev,
+                        "step": step,
+                    }
+                )
                 continue
             step_ids = step_meta.get("step_ids", set())
             step_names = step_meta.get("names", set())
             if isinstance(step_id, str) and step_id not in step_ids:
-                anomalies.append({
-                    "run_id": run_id,
-                    "reason": "STEP_ID_NOT_FOUND",
-                    "flow": flow,
-                    "flow_rev": flow_rev,
-                    "step": step,
-                    "step_id": step_id,
-                })
+                anomalies.append(
+                    {
+                        "run_id": run_id,
+                        "reason": "STEP_ID_NOT_FOUND",
+                        "flow": flow,
+                        "flow_rev": flow_rev,
+                        "step": step,
+                        "step_id": step_id,
+                    }
+                )
                 continue
             if step not in step_names and not step_ids:
-                anomalies.append({
-                    "run_id": run_id,
-                    "reason": "STEP_NOT_FOUND",
-                    "flow": flow,
-                    "flow_rev": flow_rev,
-                    "step": step,
-                })
+                anomalies.append(
+                    {
+                        "run_id": run_id,
+                        "reason": "STEP_NOT_FOUND",
+                        "flow": flow,
+                        "flow_rev": flow_rev,
+                        "step": step,
+                    }
+                )
             elif step not in step_names and isinstance(step_id, str) and step_id in step_ids:
                 # Step id matched but name differs – note the discrepancy
-                anomalies.append({
-                    "run_id": run_id,
-                    "reason": "STEP_NAME_MISMATCH",
-                    "flow": flow,
-                    "flow_rev": flow_rev,
-                    "step": step,
-                    "step_id": step_id,
-                })
+                anomalies.append(
+                    {
+                        "run_id": run_id,
+                        "reason": "STEP_NAME_MISMATCH",
+                        "flow": flow,
+                        "flow_rev": flow_rev,
+                        "step": step,
+                        "step_id": step_id,
+                    }
+                )
                 continue
             elif step not in step_names:
-                anomalies.append({
-                    "run_id": run_id,
-                    "reason": "STEP_NOT_FOUND",
-                    "flow": flow,
-                    "flow_rev": flow_rev,
-                    "step": step,
-                })
+                anomalies.append(
+                    {
+                        "run_id": run_id,
+                        "reason": "STEP_NOT_FOUND",
+                        "flow": flow,
+                        "flow_rev": flow_rev,
+                        "step": step,
+                    }
+                )
     return {
         "runs_analyzed": len(runs),
         "events": total_events,

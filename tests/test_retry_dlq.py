@@ -12,7 +12,9 @@ from tm.runtime.retry import RetryPolicy, RetrySettings
 
 def test_retry_policy_delay_and_dlq_threshold():
     default = RetrySettings(max_attempts=3, base_ms=100, factor=2.0, jitter_ms=0.0, dlq_after=None)
-    policy = RetryPolicy(default, {"flow": RetrySettings(max_attempts=2, base_ms=50, factor=1.0, jitter_ms=0.0, dlq_after=None)})
+    policy = RetryPolicy(
+        default, {"flow": RetrySettings(max_attempts=2, base_ms=50, factor=1.0, jitter_ms=0.0, dlq_after=None)}
+    )
 
     decision = policy.decide("flow", attempt=1, error={})
     assert decision.action == "retry"

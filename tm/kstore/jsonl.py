@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Mapping, Tuple
 
-from .api import  KStore, register_driver, resolve_path
+from .api import KStore, register_driver, resolve_path
 
 
 def _ensure_mapping(value: Mapping[str, object]) -> Mapping[str, object]:
@@ -82,11 +82,7 @@ class JsonlKStore(KStore):
     def scan(self, prefix: str) -> Iterable[Tuple[str, Mapping[str, object]]]:
         prefix = prefix or ""
         with self._lock:
-            items = [
-                (k, dict(v))
-                for k, v in self._state.items()
-                if k.startswith(prefix)
-            ]
+            items = [(k, dict(v)) for k, v in self._state.items() if k.startswith(prefix)]
         items.sort(key=lambda item: item[0])
         return items
 

@@ -18,4 +18,3 @@ def test_match_requires_complete_path():
 def test_parse_rejects_unclosed_brackets():
     with pytest.raises(ValueError):
         parse("a.b[1")
-

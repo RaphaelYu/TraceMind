@@ -3,8 +3,10 @@ import orjson
 from .engine import TraceSpan
 from tm.storage.binlog import BinaryLogWriter
 
+
 class PipelineTraceSink:
     """Append trace spans into a dedicated binlog directory (e.g., /data/trace)."""
+
     def __init__(self, dir_path: str, seg_bytes: int = 64_000_000):
         self.writer = BinaryLogWriter(dir_path, seg_bytes=seg_bytes)
 

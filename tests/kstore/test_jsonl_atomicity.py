@@ -8,6 +8,7 @@ def test_jsonl_atomicity(tmp_path):
     path = tmp_path / "state.jsonl"
     store = JsonlKStore(path)
     try:
+
         def _writer(idx: int) -> None:
             store.put(f"k:{idx}", {"value": idx})
 

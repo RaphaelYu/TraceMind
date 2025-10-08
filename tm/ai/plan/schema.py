@@ -259,7 +259,9 @@ def _parse_on_error(raw: Any, index: int) -> Optional[OnErrorAction]:
         backoff_ms = retry.get("backoff_ms")
         if backoff_ms is not None:
             if not isinstance(backoff_ms, int) or backoff_ms < 0:
-                raise PlanValidationError(f"plan.steps[{index}].on_error.retry.backoff_ms must be a non-negative integer")
+                raise PlanValidationError(
+                    f"plan.steps[{index}].on_error.retry.backoff_ms must be a non-negative integer"
+                )
         retry_policy = RetryPolicy(max=max_attempts, backoff_ms=backoff_ms)
 
     fallback = raw.get("fallback")

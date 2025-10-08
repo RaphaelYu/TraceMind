@@ -135,7 +135,9 @@ def _check_thresholds(stats: PlanStats, max_out_degree: int, thresholds: Thresho
 
     _check(stats.depth, thresholds.max_depth_warn, thresholds.max_depth_error, "max_depth", "depth")
     _check(stats.nodes, thresholds.max_nodes_warn, thresholds.max_nodes_error, "max_nodes", "node count")
-    _check(max_out_degree, thresholds.max_out_degree_warn, thresholds.max_out_degree_error, "max_out_degree", "out-degree")
+    _check(
+        max_out_degree, thresholds.max_out_degree_warn, thresholds.max_out_degree_error, "max_out_degree", "out-degree"
+    )
 
     issues.sort(
         key=lambda issue: (

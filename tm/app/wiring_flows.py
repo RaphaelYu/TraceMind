@@ -29,6 +29,7 @@ from tm.recipes import (
 
 router = APIRouter(prefix="/flow", tags=["flow"])
 
+
 @dataclass
 class _SpecFlow:
     spec_obj: FlowSpec

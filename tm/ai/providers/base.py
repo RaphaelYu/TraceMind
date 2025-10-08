@@ -11,6 +11,7 @@ ErrorCode = Literal[
     "RATE_LIMIT",
 ]
 
+
 @dataclasses.dataclass
 class LlmUsage:
     prompt_tokens: int
@@ -18,17 +19,20 @@ class LlmUsage:
     total_tokens: int
     cost_usd: Optional[float] = None
 
+
 @dataclasses.dataclass
 class LlmCallResult:
     output_text: str
     usage: LlmUsage
     raw: Optional[dict] = None
 
+
 class LlmError(Exception):
     def __init__(self, code: ErrorCode, message: str):
         super().__init__(message)
         self.code: ErrorCode = code
         self.message = message
+
 
 @runtime_checkable
 class Provider(Protocol):
@@ -40,5 +44,4 @@ class Provider(Protocol):
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         timeout_s: Optional[float] = None,
-    ) -> LlmCallResult:
-        ...
+    ) -> LlmCallResult: ...

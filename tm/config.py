@@ -3,8 +3,8 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-@dataclass
 
+@dataclass
 class Config:
     data_dir: str = os.getenv("DATA_DIR", "./data")
     log_dir: str = os.getenv("LOG_DIR", None)  # default computed from data_dir

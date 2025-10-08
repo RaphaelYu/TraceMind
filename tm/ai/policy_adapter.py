@@ -159,7 +159,9 @@ class McpPolicyAdapter(PolicyAdapter):
 
         tool = _parse_tool(binding_meta.endpoint)
         try:
-            remote_version = await self._fetch_policy(binding_key, tool, binding_meta, local_candidates, context, local_version)
+            remote_version = await self._fetch_policy(
+                binding_key, tool, binding_meta, local_candidates, context, local_version
+            )
             arms = await self._fetch_arms(binding_key, tool, binding_meta, local_candidates, context)
             return PolicyDecision(arms=arms, remote_version=remote_version, fallback=False)
         except Exception as exc:  # pragma: no cover - network/transport errors

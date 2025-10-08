@@ -95,7 +95,9 @@ def _parse_flow(flow_doc: Mapping[str, object]) -> FlowSpec:
     return FlowSpec(id=flow_id, steps=steps, entrypoints=entry)
 
 
-def simulate(flow_doc: Mapping[str, object], *, at: str | None = None, seed: int | None = None, max_concurrency: int = 1) -> Dict[str, object]:
+def simulate(
+    flow_doc: Mapping[str, object], *, at: str | None = None, seed: int | None = None, max_concurrency: int = 1
+) -> Dict[str, object]:
     flow = _parse_flow(flow_doc)
     rng = random.Random(seed if seed is not None else 0)
     now = 0
@@ -148,7 +150,11 @@ def simulate(flow_doc: Mapping[str, object], *, at: str | None = None, seed: int
                     state.held_locks.append(req)
                     state.acquired_index += 1
                     progress = True
-            if state.acquired_index == len(state.spec.locks) and state in waiting and len(running) < max(1, max_concurrency):
+            if (
+                state.acquired_index == len(state.spec.locks)
+                and state in waiting
+                and len(running) < max(1, max_concurrency)
+            ):
                 waiting.remove(state)
                 state.started_at = now
                 running.append(state)

@@ -5,6 +5,7 @@ from tm.policy.local_store import LocalPolicyStore
 from tm.policy.mcp_client import MCPClient, JSONRPCError
 from tm.utils.async_tools import with_timeout
 
+
 @dataclass
 class PolicyAdapter:
     """MCP-backed policy adapter with graceful fallback to LocalPolicyStore.
@@ -16,6 +17,7 @@ class PolicyAdapter:
 
     Logs/metrics are intentionally omitted here to keep zero-conflict.
     """
+
     mcp: Optional[MCPClient]
     local: LocalPolicyStore
     timeout_s: float = 5.0

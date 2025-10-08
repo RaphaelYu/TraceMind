@@ -86,4 +86,3 @@ def _signal_ready(ctx: Dict[str, object]) -> Dict[str, object]:
     hub.signal(req_id, payload)
     ctx["response"] = payload
     return ctx
-

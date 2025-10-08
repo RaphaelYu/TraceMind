@@ -38,12 +38,12 @@ class _ReflectRequest:
         instructions = (
             "You are TraceMind Reflector. Return STRICT JSON matching:\n"
             "{\n"
-            "  \"version\": \"reflect.v1\",\n"
-            "  \"summary\": string,\n"
-            "  \"issues\": [strings],\n"
-            "  \"guidance\": string?,\n"
-            "  \"plan_patch\": {\"ops\": [{\"op\": \"add|replace|remove\", \"path\": \"/steps/<idx>/inputs...\", \"value\": any}] }?,\n"
-            "  \"policy_update\": object\n"
+            '  "version": "reflect.v1",\n'
+            '  "summary": string,\n'
+            '  "issues": [strings],\n'
+            '  "guidance": string?,\n'
+            '  "plan_patch": {"ops": [{"op": "add|replace|remove", "path": "/steps/<idx>/inputs...", "value": any}] }?,\n'
+            '  "policy_update": object\n'
             "}\n"
             "Never include commentary or explanations."
         )
@@ -116,7 +116,9 @@ def _is_retryable_error(exc: Exception) -> bool:
     return code in {"RATE_LIMIT", "PROVIDER_ERROR", "RUN_TIMEOUT"}
 
 
-async def run(params: Dict[str, Any], *, flow_id: Optional[str] = None, step_id: Optional[str] = None) -> Dict[str, Any]:
+async def run(
+    params: Dict[str, Any], *, flow_id: Optional[str] = None, step_id: Optional[str] = None
+) -> Dict[str, Any]:
     try:
         request = _parse_request(params)
     except ValueError as exc:

@@ -5,23 +5,20 @@ import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict,  Optional
+from typing import Any, Dict, Optional
 
 
 class MemoryStore(abc.ABC):
     """Abstract storage for session-scoped key-value and append-only data."""
 
     @abc.abstractmethod
-    async def get(self, session_id: str, key: str) -> Any:
-        ...
+    async def get(self, session_id: str, key: str) -> Any: ...
 
     @abc.abstractmethod
-    async def set(self, session_id: str, key: str, value: Any) -> None:
-        ...
+    async def set(self, session_id: str, key: str, value: Any) -> None: ...
 
     @abc.abstractmethod
-    async def append(self, session_id: str, key: str, item: Any) -> None:
-        ...
+    async def append(self, session_id: str, key: str, item: Any) -> None: ...
 
     async def clear(self, session_id: str, key: Optional[str] = None) -> None:
         if key is None:

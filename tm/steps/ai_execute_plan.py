@@ -111,7 +111,6 @@ async def _execute_step(
 
     attempt = 0
     error: Optional[Exception] = None
-    
 
     while attempt < max_attempts:
         attempt += 1
@@ -133,7 +132,6 @@ async def _execute_step(
             await asyncio.sleep((backoff_ms or int(default_backoff(attempt) * 1000)) / 1000.0)
             continue
 
-        
         if result.get("status") == "ok":
             plan_results[step.id] = result
             return result

@@ -83,4 +83,3 @@ class McpServer:
             "id": request_id,
             "error": {"code": -32000, "message": message},
         }
-

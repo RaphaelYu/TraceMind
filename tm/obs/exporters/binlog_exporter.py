@@ -6,7 +6,7 @@ import json
 import os
 import threading
 import time
-from typing import Dict,  List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from tm.obs.counters import Registry
 from tm.obs import counters

@@ -18,6 +18,7 @@ except ModuleNotFoundError:  # pragma: no cover
 # Callable resolution
 # ---------------------------------------------------------------------------
 
+
 def _resolve_callable(ref: Any) -> Callable:
     if callable(ref):
         return ref
@@ -48,6 +49,7 @@ async def _maybe_call(func: Callable, *args, **kwargs):
 # ---------------------------------------------------------------------------
 # Switch/when/parallel helpers
 # ---------------------------------------------------------------------------
+
 
 def _to_str(value: Any) -> str:
     return "" if value is None else str(value)
@@ -99,6 +101,7 @@ async def parallel(
     branches: Mapping[str, Callable | str] | None = None,
 ) -> Dict[str, Any]:
     """Execute branch callables concurrently and merge their outputs."""
+
     async def runner(name: str, func: Callable) -> tuple[str, Any]:
         value = await _maybe_call(func, ctx, state)
         return name, value
@@ -126,6 +129,7 @@ async def parallel(
 # I/O helpers
 # ---------------------------------------------------------------------------
 
+
 def load_json(source: str | Path) -> Any:
     path = Path(source)
     if path.exists():
@@ -149,6 +153,7 @@ def load_yaml(source: str | Path) -> Any:
 # ---------------------------------------------------------------------------
 # Patch helpers
 # ---------------------------------------------------------------------------
+
 
 def deep_merge(a: Any, b: Any, *, array_mode: str = "replace") -> Any:
     if isinstance(a, Mapping) and isinstance(b, Mapping):

@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import Dict, Any
 
+
 @dataclass(frozen=True)
 class Event:
     pass
+
 
 @dataclass(frozen=True)
 class ObjectUpserted(Event):

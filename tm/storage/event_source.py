@@ -2,6 +2,7 @@ from typing import Iterator, Tuple
 
 from .binlog import BinaryLogReader
 
+
 class EventSource:
     """Uniform iterator over events stored in the binary log.
     Payloads are returned as raw bytes; the caller decides how to decode.

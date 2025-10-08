@@ -2,6 +2,7 @@ from typing import List
 from .commands import UpsertObject, Command
 from .events import ObjectUpserted, Event
 
+
 class AppService:
     """Accept commands, convert to events, append to store via a provided sink,
     then publish on the in-proc event bus. The store sink here is a callable

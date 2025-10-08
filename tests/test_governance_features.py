@@ -44,9 +44,7 @@ async def test_guard_blocks_request(monkeypatch):
         breaker=BreakerConfig(enabled=False),
         guard=GuardConfig(
             enabled=True,
-            global_rules=(
-                {"type": "length_max", "path": "$.text", "value": 3},
-            ),
+            global_rules=({"type": "length_max", "path": "$.text", "value": 3},),
         ),
         hitl=HitlConfig(enabled=False),
         audit=AuditConfig(enabled=False),

@@ -4,6 +4,7 @@ from tm.pipeline.engine import StepSpec, Rule, Plan
 
 # Demo steps --------------------------------------------------------------
 
+
 def step_validate_services(ctx: Dict[str, Any]) -> Dict[str, Any]:
     new = ctx.get("new", {})
     for i, svc in enumerate(new.get("services", [])):
@@ -11,6 +12,7 @@ def step_validate_services(ctx: Dict[str, Any]) -> Dict[str, Any]:
         if not name:
             raise ValueError(f"services[{i}].name is empty")
     return ctx
+
 
 def step_derive_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     new = dict(ctx.get("new", {}))
@@ -25,17 +27,17 @@ def step_derive_status(ctx: Dict[str, Any]) -> Dict[str, Any]:
     ctx.setdefault("effects", []).append({"emit": "DerivedStatus", "value": new["status"]})
     return ctx
 
+
 # Build plan --------------------------------------------------------------
+
 
 def build_plan() -> Plan:
     steps = {
         "validate_services": StepSpec(
-            name="validate_services",
-            reads=["services[].name"], writes=[], fn=step_validate_services
+            name="validate_services", reads=["services[].name"], writes=[], fn=step_validate_services
         ),
         "derive_status": StepSpec(
-            name="derive_status",
-            reads=["status", "services[].state"], writes=["status"], fn=step_derive_status
+            name="derive_status", reads=["status", "services[].state"], writes=["status"], fn=step_derive_status
         ),
     }
     rules = [

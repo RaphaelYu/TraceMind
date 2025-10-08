@@ -124,7 +124,9 @@ def _parse_plan_patch(raw: Mapping[str, Any]) -> PlanPatch:
             raise ReflectionValidationError(f"plan_patch.ops[{idx}].op must be one of {_ALLOWED_PATCH_OPS}")
         path = item.get("path")
         if not isinstance(path, str) or not path.startswith("/steps/"):
-            raise ReflectionValidationError("plan_patch path must target /steps/<index>/inputs or /steps/<index>/on_error")
+            raise ReflectionValidationError(
+                "plan_patch path must target /steps/<index>/inputs or /steps/<index>/on_error"
+            )
         segments = path.split("/")
         if len(segments) < 4:
             raise ReflectionValidationError("plan_patch path must include step index and field")

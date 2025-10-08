@@ -22,13 +22,9 @@ def from_metrics(registry: Registry | None = None) -> Observation:
     reg = registry or counters.metrics
     snapshot = reg.snapshot()
     counter_values = {
-        f"{name}{labels}": value
-        for name, samples in snapshot.get("counters", {}).items()
-        for labels, value in samples
+        f"{name}{labels}": value for name, samples in snapshot.get("counters", {}).items() for labels, value in samples
     }
     gauge_values = {
-        f"{name}{labels}": value
-        for name, samples in snapshot.get("gauges", {}).items()
-        for labels, value in samples
+        f"{name}{labels}": value for name, samples in snapshot.get("gauges", {}).items() for labels, value in samples
     }
     return Observation(counters=counter_values, gauges=gauge_values)

@@ -2,8 +2,10 @@ from __future__ import annotations
 from ..graph import FlowGraph, chain
 from ..repo import FlowBase, flowrepo
 
+
 class DemoSwitchParallel(FlowBase):
     name = "demo_switch_parallel"
+
     def build(self, **params) -> FlowGraph:
         f = FlowGraph(self.name)
         v = f.task("validate", uses="core.validate_payload", before=["chk.require_payload"])

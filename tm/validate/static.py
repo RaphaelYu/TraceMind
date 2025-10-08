@@ -33,7 +33,9 @@ def _collect(ids: Iterable[str]) -> Mapping[str, int]:
     return counts
 
 
-def find_conflicts(flows: Sequence[Mapping[str, object]], policies: Sequence[Mapping[str, object]]) -> Sequence[Conflict]:
+def find_conflicts(
+    flows: Sequence[Mapping[str, object]], policies: Sequence[Mapping[str, object]]
+) -> Sequence[Conflict]:
     conflicts: list[Conflict] = []
 
     flow_ids = _collect(str(flow.get("id", "")) for flow in flows)

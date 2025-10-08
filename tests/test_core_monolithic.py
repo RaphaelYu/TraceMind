@@ -32,6 +32,7 @@ from tm.flow.core import (
 # Basic dataclass / enum sanity
 # ---------------------------------------------------------------------------
 
+
 def test_nodekind_members():
     assert {kind.name for kind in NodeKind} == {"TASK", "FINISH", "SWITCH", "PARALLEL"}
 
@@ -46,6 +47,7 @@ def test_step_and_context_defaults():
 # ---------------------------------------------------------------------------
 # Operator and check registry behaviour
 # ---------------------------------------------------------------------------
+
 
 def test_operator_registry_register_and_meta():
     reg = OperatorRegistry()
@@ -64,6 +66,7 @@ def test_operator_registry_register_and_meta():
     assert reg.meta("missing") == {"reads": set(), "writes": set(), "externals": set(), "pure": False}
 
     with pytest.raises(ValueError):
+
         @reg.operator("test.op")
         def _duplicate(ctx, inputs):
             return inputs
@@ -91,6 +94,7 @@ def test_check_registry_register_and_get():
         reg.get("missing")
 
     with pytest.raises(ValueError):
+
         @reg.check("chk.one")
         def _dup(ctx, inputs):
             return None
@@ -99,6 +103,7 @@ def test_check_registry_register_and_get():
 # ---------------------------------------------------------------------------
 # FlowGraph utilities & chain
 # ---------------------------------------------------------------------------
+
 
 def test_flowgraph_builders_and_edges():
     graph = FlowGraph("demo")
@@ -143,6 +148,7 @@ def test_chain_adds_edges():
 # FlowBase / FlowRepo
 # ---------------------------------------------------------------------------
 
+
 def test_flowbase_and_flowrepo_registration():
     class GoodFlow(FlowBase):
         name = "good"
@@ -183,6 +189,7 @@ def test_flowbase_and_flowrepo_registration():
 # ---------------------------------------------------------------------------
 # Static analysis scenarios
 # ---------------------------------------------------------------------------
+
 
 def _make_registry_with_ops():
     reg = OperatorRegistry()
@@ -264,6 +271,7 @@ def test_static_analyzer_detects_issues():
 # Tracer behaviour
 # ---------------------------------------------------------------------------
 
+
 def test_airflow_style_tracer_records_runs():
     tracer = AirflowStyleTracer(xcom_bytes_limit=5)
     run_id = tracer.begin("flow")
@@ -283,11 +291,14 @@ def test_airflow_style_tracer_records_runs():
 # Policy parsing
 # ---------------------------------------------------------------------------
 
+
 def test_parse_policies_from_cfg():
-    pol = _parse_policies_from_cfg({
-        "retry": {"max_attempts": 3, "backoff_ms": 50},
-        "timeout": {"timeout_ms": 120},
-    })
+    pol = _parse_policies_from_cfg(
+        {
+            "retry": {"max_attempts": 3, "backoff_ms": 50},
+            "timeout": {"timeout_ms": 120},
+        }
+    )
     assert pol.retry.max_attempts == 3
     assert pol.retry.backoff_ms == 50
     assert pol.timeout.timeout_ms == 120
@@ -300,6 +311,7 @@ def test_parse_policies_from_cfg():
 # ---------------------------------------------------------------------------
 # Engine internals
 # ---------------------------------------------------------------------------
+
 
 def test_engine_get_path_and_checks():
     root = {"vars": {"task": {"value": 7}}, "inputs": {}, "cfg": {}}
@@ -362,6 +374,7 @@ def test_engine_run_operator_success_retry_timeout():
 # ---------------------------------------------------------------------------
 # Engine end-to-end run
 # ---------------------------------------------------------------------------
+
 
 def test_engine_run_success_and_failure_paths():
     flow = build_demo_flow()

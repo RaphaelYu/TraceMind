@@ -10,7 +10,7 @@ from tm.guard import GuardDecision, GuardEngine, GuardRule
 from tm.obs import counters
 
 from .audit import AuditTrail
-from .budget import  BudgetTracker
+from .budget import BudgetTracker
 from .breaker import BreakerState, CircuitBreaker
 from .config import (
     BreakerSettings,
@@ -20,7 +20,7 @@ from .config import (
     load_governance_config,
 )
 from .hitl import HitlManager
-from .ratelimit import  RateTracker
+from .ratelimit import RateTracker
 
 
 BreakerKey = Tuple[str, Optional[str]]
@@ -171,7 +171,9 @@ class GovernanceManager:
                 rules.extend(policy_rules)
         if not rules:
             return GuardDecision(True, ())
-        decision = self._guard_engine.evaluate(payload, rules, context={"flow": request.flow, "binding": request.binding})
+        decision = self._guard_engine.evaluate(
+            payload, rules, context={"flow": request.flow, "binding": request.binding}
+        )
         if not decision.allowed and self._audit.enabled:
             first = decision.first
             meta = first.as_dict() if first else {"reason": "guard_blocked"}
@@ -316,9 +318,7 @@ class GovernanceManager:
             handle.breaker.release_half_open_slot()
 
     def _record_rate_reject(self, key: LimitKey) -> None:
-        counters.metrics.get_counter("tm_govern_qps_limited_total").inc(
-            labels={"scope": _format_limit_scope(key)}
-        )
+        counters.metrics.get_counter("tm_govern_qps_limited_total").inc(labels={"scope": _format_limit_scope(key)})
 
     def _record_budget_reject(self, key: LimitKey, kind: Optional[str]) -> None:
         labels = {"scope": _format_limit_scope(key)}

@@ -103,14 +103,17 @@ class FileWorkQueue(WorkQueue):
             if segment is None:
                 raise RuntimeError("active segment missing after ensure")
             offset = self._allocate_offset()
-            record = json.dumps(
-                {
-                    "offset": offset,
-                    "task": payload,
-                    "enqueued_at": time.time(),
-                },
-                separators=(",", ":"),
-            ).encode("utf-8") + b"\n"
+            record = (
+                json.dumps(
+                    {
+                        "offset": offset,
+                        "task": payload,
+                        "enqueued_at": time.time(),
+                    },
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                + b"\n"
+            )
             if segment.size_bytes + len(record) > self._segment_max_bytes and segment.record_count > 0:
                 self._rotate_segment_unlocked()
                 segment = self._current_segment
@@ -221,11 +224,7 @@ class FileWorkQueue(WorkQueue):
 
     def oldest_available_at(self) -> Optional[float]:
         with self._lock:
-            candidates = [
-                entry.available_at
-                for entry in self._entries.values()
-                if entry.token is None
-            ]
+            candidates = [entry.available_at for entry in self._entries.values() if entry.token is None]
         if not candidates:
             return None
         return min(candidates)
@@ -477,6 +476,7 @@ class FileWorkQueue(WorkQueue):
             if lock_fp is not None:
                 fcntl.flock(lock_fp.fileno(), fcntl.LOCK_UN)
                 lock_fp.close()
+
     def _maybe_compact_head(self) -> None:
         with self._io_lock:
             while self._segments:

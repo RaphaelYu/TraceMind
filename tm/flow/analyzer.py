@@ -4,6 +4,7 @@ import networkx as nx
 from .graph import FlowGraph, NodeKind, Step
 from .registry import OperatorRegistry
 
+
 class StaticAnalyzer:
     def __init__(self, registry: OperatorRegistry):
         self.registry = registry

@@ -264,9 +264,7 @@ class RecipeLoader:
                     case_targets.add(default)
             missing = case_targets - targets
             if missing:
-                raise RecipeError(
-                    f"Switch step '{step_id}' missing edge(s) for targets: {', '.join(sorted(missing))}"
-                )
+                raise RecipeError(f"Switch step '{step_id}' missing edge(s) for targets: {', '.join(sorted(missing))}")
         elif op is Operation.PARALLEL:
             branches = config.get("branches")
             if not isinstance(branches, list) or not all(isinstance(b, str) for b in branches):
