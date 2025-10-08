@@ -142,13 +142,15 @@ class FileWorkQueue(WorkQueue):
                 segment = self._current_segment
                 if segment is None:
                     raise RuntimeError("active segment missing after rotate")
-            fd = os.open(segment.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND)
-            try:
-                os.write(fd, record)
-                if self._fsync_on_put:
-                    os.fsync(fd)
-            finally:
-                os.close(fd)
+            with open(segment.path, "ab") as fp:
+                _lock_file(fp)
+                try:
+                    fp.write(record)
+                    if self._fsync_on_put:
+                        fp.flush()
+                        os.fsync(fp.fileno())
+                finally:
+                    _unlock_file(fp)
             available_at = _extract_available_at(payload)
             with self._lock:
                 segment.add_record(offset, len(record))
