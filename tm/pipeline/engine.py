@@ -1,7 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Any, Tuple
-import json, time
+import json
+import time
 from tm.obs.recorder import Recorder
 
 Path = Tuple[Any, ...]

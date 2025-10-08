@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Mapping, Tuple
 
-from .api import DriverFactory, KStore, register_driver, resolve_path
+from .api import  KStore, register_driver, resolve_path
 
 
 def _ensure_mapping(value: Mapping[str, object]) -> Mapping[str, object]:

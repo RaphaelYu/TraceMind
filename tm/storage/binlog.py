@@ -1,5 +1,7 @@
 # tm/storage/binlog.py
-import os, time, zlib
+import os
+import time
+import zlib
 from typing import Iterable, Iterator, Tuple
 
 MAGIC = b"TMG1"
@@ -11,23 +13,27 @@ def _varint_encode(n: int) -> bytes:
         b = n & 0x7F
         n >>= 7
         out.append(b | (0x80 if n else 0))
-        if not n: break
+        if not n: 
+            break
     return bytes(out)
 
 def _varint_decode(buf: memoryview, pos: int) -> Tuple[int,int]:
-    shift = 0; out = 0
+    shift ,out = 0,0
     while True:
-        b = buf[pos]; pos += 1
+        b = buf[pos]
+        pos += 1
         out |= (b & 0x7F) << shift
-        if (b & 0x80) == 0: break
+        if (b & 0x80) == 0: 
+            break
         shift += 7
     return out, pos
 
 class BinaryLogWriter:
     def __init__(self, dir_path: str, seg_bytes: int = 128_000_000):
-        self.dir = dir_path; os.makedirs(self.dir, exist_ok=True)
+        self.dir = dir_path
+        os.makedirs(self.dir, exist_ok=True)
         self.seg_bytes = seg_bytes
-        self.fp = None; self.path = None; self.size = 0
+        self.fp , self.path,self.size = None, None,0
         self._open_new_segment()
 
     def _open_new_segment(self):
@@ -46,17 +52,24 @@ class BinaryLogWriter:
             crc = zlib.crc32(frame) & 0xffffffff
             chunks.append(frame + crc.to_bytes(4, "big"))
         blob = b"".join(chunks)
-        n = self.fp.write(blob); self.size += n
+        n = self.fp.write(blob)
+        self.size += n
         if self.size >= self.seg_bytes:
-            self.fp.flush(); os.fsync(self.fp.fileno()); self.fp.close()
+            self.fp.flush()
+            os.fsync(self.fp.fileno())
+            self.fp.close()
             self._open_new_segment()
 
     def flush_fsync(self):
-        self.fp.flush(); os.fsync(self.fp.fileno())
+        self.fp.flush()
+        os.fsync(self.fp.fileno())
 
     def close(self):
-        if self.fp is None: return
-        self.fp.flush(); os.fsync(self.fp.fileno()); self.fp.close()
+        if self.fp is None: 
+            return
+        self.fp.flush()
+        os.fsync(self.fp.fileno())
+        self.fp.close()
         self.fp = None
 
 class BinaryLogReader:
@@ -65,18 +78,23 @@ class BinaryLogReader:
 
     def scan(self) -> Iterator[Tuple[str, bytes]]:
         for name in sorted(os.listdir(self.dir)):
-            if not name.endswith(".tmbl"): continue
+            if not name.endswith(".tmbl"): 
+                continue
             with open(os.path.join(self.dir, name), "rb") as f:
-                data = f.read(); mv = memoryview(data); p = 0
+                data  = f.read()
+                mv, p = memoryview(data), 0
                 L = len(data)
                 while p + 9 <= L:  # magic(4)+ver(1)+len(varint)+crc(4)
-                    if mv[p:p+4].tobytes() != MAGIC: break
+                    if mv[p : p + 4].tobytes() != MAGIC:
+                        break
                     start = p
-                    p += 4; ver = mv[p]; p += 1
-                    len_pos = p
+                    p += 4
+                    _ = mv[p]
+                    p += 1
+                    
                     blen, p = _varint_decode(mv, p)
-                    var_len = p - len_pos
-                    if p + blen + 4 > L: break
+                    if p + blen + 4 > L:
+                        break
                     frame = mv[start : p + blen]  # include magic+ver+len for crc window
                     body = mv[p : p + blen].tobytes()
                     p += blen

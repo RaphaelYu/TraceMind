@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import importlib
-from typing import Any, Awaitable, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict
 
 
 class StepRegistry:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Set, Tuple, Iterable, Optional
+from typing import Dict, List, Set, Tuple,  Optional
 from .engine import Plan, StepSpec, Rule
 
 # -----------------------------
@@ -90,7 +90,8 @@ def _topological_order(graph: Dict[str, List[str]]) -> Tuple[List[str], List[Lis
 def _find_cycles(graph: Dict[str, List[str]]) -> List[List[str]]:
     seen, stack, cycles = set(), [], []
     def dfs(u: str):
-        seen.add(u); stack.append(u)
+        seen.add(u)
+        stack.append(u)
         for v in graph.get(u, []):
             if v not in seen:
                 dfs(v)

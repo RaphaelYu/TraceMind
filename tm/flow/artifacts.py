@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
 
-from .spec import FlowSpec, StepDef
+from .spec import FlowSpec
 from .inspector import FlowInspector
 
 

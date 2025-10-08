@@ -7,7 +7,7 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Mapping
+from typing import Dict,  List, Optional
 
 from tm.obs.counters import Registry
 from tm.obs import counters

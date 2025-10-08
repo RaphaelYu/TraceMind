@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, MutableMapping
+from typing import Any, Dict, Mapping
 
 EnvelopeDict = Dict[str, Any]
 DEFAULT_HEADERS: Mapping[str, Any] = {}

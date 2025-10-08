@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Dict, Any
 import orjson
 from .engine import TraceSpan
 from tm.storage.binlog import BinaryLogWriter

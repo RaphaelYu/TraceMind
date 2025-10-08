@@ -1,7 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
-from tm.plugins.base import Plugin
 from tm.pipeline.engine import Plan
 from tm.app.rich_demo_plan import build_plan  # reuse your plan file
 

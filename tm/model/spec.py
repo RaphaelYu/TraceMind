@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, Mapping, MutableMapping, Optional, Sequence, Set, TYPE_CHECKING
+from typing import Any, Callable, Dict,  Mapping, MutableMapping, Optional, Sequence, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing aid only
     from .entity import Entity
@@ -68,17 +68,17 @@ class ModelSpec:
     def ensure(self, data: Mapping[str, Any], *, partial: bool = False) -> Dict[str, Any]:
         validated: Dict[str, Any] = {}
         provided = set(data.keys())
-        for field in self.fields:
-            if field.name in data:
-                value = field.coerce(data[field.name])
+        for field_spec in self.fields:
+            if field_spec.name in data:
+                value = field_spec.coerce(data[field_spec.name])
                 if value is not _MISSING:
-                    validated[field.name] = value
-                provided.discard(field.name)
+                    validated[field_spec.name] = value
+                provided.discard(field_spec.name)
             else:
-                if not partial and field.required:
-                    raise ValueError(f"Missing field '{field.name}' for model '{self.name}'")
-                if field.has_default() and not partial:
-                    validated[field.name] = field.default
+                if not partial and field_spec.required:
+                    raise ValueError(f"Missing field '{field_spec.name}' for model '{self.name}'")
+                if field_spec.has_default() and not partial:
+                    validated[field_spec.name] = field_spec.default
 
         if provided and not self.allow_extra:
             extras = ", ".join(sorted(provided))

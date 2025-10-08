@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import ClassVar, Dict, Optional
+from typing import ClassVar,  Optional
 
 from .counters import Registry
 from . import counters

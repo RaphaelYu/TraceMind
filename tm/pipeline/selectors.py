@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Iterable, List, Tuple
+from typing import Any,  List, Tuple
 
 Path = Tuple[Any, ...]
 
@@ -11,18 +11,21 @@ def parse(expr: str) -> List[str]:
         ch = expr[i]
         if ch == '.':
             if buf:
-                toks.append(buf); buf = ""
+                toks.append(buf)
+                buf = ""
             i += 1
         elif ch == '[':
             if buf:
-                toks.append(buf); buf = ""
+                toks.append(buf)
+                buf = ""
             j = expr.find(']', i)
             if j < 0:
                 raise ValueError(f"Unclosed '[' in selector: {expr}")
             toks.append(expr[i:j+1])
             i = j + 1
         else:
-            buf += ch; i += 1
+            buf += ch
+            i += 1
     if buf:
         toks.append(buf)
     return toks

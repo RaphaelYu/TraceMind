@@ -108,7 +108,6 @@ class RecipeLoader:
 
     def _build_spec(self, flow: Dict[str, Any]) -> FlowSpec:
         flow_id = self._expect_str(flow, "id")
-        flow_version = self._expect_str(flow, "version")
         entry = self._expect_str(flow, "entry")
 
         spec = FlowSpec(name=flow_id, flow_id=flow_id)

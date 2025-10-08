@@ -1,4 +1,6 @@
-import asyncio, time, os
+import asyncio
+import time
+import os
 from typing import Any, Dict, List, Tuple
 from fastapi import FastAPI, Response
 from pydantic import BaseModel
@@ -15,7 +17,6 @@ from tm.pipeline.engine import Pipeline
 from tm.pipeline.trace_store import PipelineTraceSink
 from tm.pipeline.selectors import match as sel_match
 from tm.app.demo_plan import build_plan
-
 cfg = Config()
 app = FastAPI()
 
@@ -55,13 +56,14 @@ trace_sink = PipelineTraceSink(dir_path=os.path.join(cfg.data_dir, "trace"))
 pipe = Pipeline(plan=build_plan(), trace_sink=trace_sink.append)
 
 # naive JSON diff (dict/list/scalar)
-from typing import Any, List, Tuple
+
 Path = Tuple[Any, ...]
 
 def _diff_json(old: Any, new: Any, path: Tuple[Any,...]=()) -> List[Tuple[Path, str, Any, Any]]:
     out: List[Tuple[Path, str, Any, Any]] = []
-    if type(old) != type(new):
-        out.append((path, 'modified', old, new)); return out
+    if isinstance(old, type(new)):
+        out.append((path, 'modified', old, new))
+        return out
     if isinstance(old, dict):
         keys = set(old) | set(new)
         for k in sorted(keys):
@@ -117,10 +119,12 @@ async def pump():
         if buf and (len(buf) >= cfg.batch_max or (now - last) >= cfg.batch_ms):
             writer.append_many(buf)
             metrics.set_flush((time.time() - now) * 1000.0)
-            buf.clear(); last = now
+            buf.clear()
+            last = now
 
         if (now - last_flush) >= cfg.fsync_ms:
-            writer.flush_fsync(); last_flush = now
+            writer.flush_fsync()
+            last_flush = now
 
         metrics.set_q(Q.qsize())
         # drain one SSE payload per loop to keep UI responsive

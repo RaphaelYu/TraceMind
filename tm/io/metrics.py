@@ -1,5 +1,3 @@
-import time
-
 from collections import Counter
 
 class Metrics:

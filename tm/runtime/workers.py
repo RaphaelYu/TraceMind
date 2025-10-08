@@ -9,8 +9,8 @@ import os
 import signal
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Mapping, Optional
+from dataclasses import dataclass
+from typing import Any,  Dict, Mapping, Optional
 
 from .idempotency import IdempotencyResult, IdempotencyStore
 from .queue import FileWorkQueue, InMemoryWorkQueue, WorkQueue

@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
-import time, uuid, json
+import time
+import uuid
+import json
 
 class AirflowStyleTracer:
     def __init__(self, dag_id_prefix: str = "tm_flow", capture_outputs: bool = True, xcom_bytes_limit: int = 16_000):
@@ -21,7 +23,6 @@ class AirflowStyleTracer:
         return run_id
 
     def on_step(self, run_id: str, step, result, inputs: Dict[str, Any]):
-        now = time.time()
         ti = {
             "dag_id": self._runs[run_id]["dag_id"],
             "run_id": run_id,

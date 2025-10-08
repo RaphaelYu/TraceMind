@@ -199,7 +199,7 @@ async def run(params: dict[str, Any], *, flow_id: Optional[str] = None, step_id:
 
     overall_start = time.perf_counter()
     while attempt < attempts:
-        start = time.perf_counter()
+
         attempt += 1
         try:
             call_result = await client.call(

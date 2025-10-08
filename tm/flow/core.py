@@ -496,11 +496,13 @@ class Engine:
                 for succ in flow.successors(current):
                     casev = flow.edge_attr(current, succ, "case", None)
                     if casev == key:
-                        chosen = succ; break
+                        chosen = succ
+                        break
                 if chosen is None:
                     for succ in flow.successors(current):
                         if flow.edge_attr(current, succ, "case", None) == step.cfg.get("default", "_DEFAULT"):
-                            chosen = succ; break
+                            chosen = succ
+                            break
                 res = StepResult(
                     status="ok",
                     output={"key": key, "chosen_case": (key if chosen else step.cfg.get("default"))},
@@ -529,7 +531,6 @@ class Engine:
                     with ThreadPoolExecutor(max_workers=max_workers) as ex:
                         futs = {ex.submit(_one, u): u for u in uses}
                         for fut in as_completed(futs):
-                            u = futs[fut]
                             name, out = fut.result()
                             outputs[name] = out
                     res = StepResult(status="ok", output={"parallel": outputs}, duration_ms=(time.time() - t0) * 1000)

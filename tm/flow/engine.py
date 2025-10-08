@@ -145,7 +145,6 @@ class Engine:
                     with ThreadPoolExecutor(max_workers=max_workers) as ex:
                         futs = {ex.submit(_one, u): u for u in uses}
                         for fut in as_completed(futs):
-                            u = futs[fut]
                             name, out = fut.result()
                             outputs[name] = out
                     res = StepResult(status="ok", output={"parallel": outputs}, duration_ms=(time.time() - t0) * 1000)
