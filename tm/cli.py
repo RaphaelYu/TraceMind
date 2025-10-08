@@ -55,8 +55,12 @@ def _init_from_template(template: str, project_name: str, *, force: bool) -> Pat
         raise FileNotFoundError(f"Unknown template '{template}'")
     project_root = Path.cwd() / project_name
     if project_root.exists():
-        if not project_root.is_dir(): raise FileExistsError(f"Destination '{project_root}' exists and is not a directory")
-        if not force and any(project_root.iterdir()): raise FileExistsError(f"Destination '{project_root}' already exists; use --force to overwrite scaffolding files")
+        if not project_root.is_dir():
+            raise FileExistsError(f"Destination '{project_root}' exists and is not a directory")
+        if not force and any(project_root.iterdir()):
+            raise FileExistsError(
+                f"Destination '{project_root}' already exists; use --force to overwrite scaffolding files"
+            )
     else:
         project_root.mkdir(parents=True, exist_ok=True)
     shutil.copytree(template_dir, project_root, dirs_exist_ok=True)

@@ -1,4 +1,5 @@
-from typing import Iterable, Iterator, Tuple
+from typing import Iterator, Tuple
+
 from .binlog import BinaryLogReader
 
 class EventSource:

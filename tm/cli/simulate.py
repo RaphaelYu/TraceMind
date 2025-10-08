@@ -3,7 +3,7 @@ from __future__ import annotations
 import glob
 import json
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Mapping
 
 try:  # pragma: no cover - optional dependency
     import yaml

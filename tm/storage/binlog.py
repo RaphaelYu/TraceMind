@@ -77,11 +77,13 @@ class BinaryLogReader:
                     blen, p = _varint_decode(mv, p)
                     var_len = p - len_pos
                     if p + blen + 4 > L: break
-                    frame = mv[start : p+blen]  # include magic+ver+len for crc window
-                    body = mv[p : p+blen].tobytes()
+                    frame = mv[start : p + blen]  # include magic+ver+len for crc window
+                    body = mv[p : p + blen].tobytes()
                     p += blen
-                    crc = int.from_bytes(mv[p:p+4], "big"); p += 4
-                    if (zlib.crc32(frame.tobytes()) & 0xffffffff) != crc: break
+                    crc = int.from_bytes(mv[p : p + 4], "big")
+                    p += 4
+                    if (zlib.crc32(frame.tobytes()) & 0xFFFFFFFF) != crc:
+                        break
                     et_len, q = _varint_decode(memoryview(body), 0)
                     et = body[q:q+et_len].decode("utf-8")
                     payload = body[q+et_len:]
