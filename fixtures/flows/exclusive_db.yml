@@ -1,0 +1,6 @@
+id: flowA
+steps:
+  start:
+    locks:
+    - name: db
+      mode: exclusive

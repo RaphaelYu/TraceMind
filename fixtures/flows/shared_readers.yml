@@ -1,0 +1,9 @@
+steps:
+  reader1:
+    locks:
+    - name: db
+      mode: shared
+  reader2:
+    locks:
+    - name: db
+      mode: shared
