@@ -25,8 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install PyYAML
-          python -m pip install -e ".[dev,cron]"
+          python -m pip install -e ".[dev,yaml,cron]"
 
       - name: Ruff
         run: python -m ruff check .
@@ -64,8 +63,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install PyYAML
-          python -m pip install -e ".[dev,cron]"
+          python -m pip install -e ".[dev,yaml,cron]"
 
       - name: Pytest
         run: python -m pytest -q
