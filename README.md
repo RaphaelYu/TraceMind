@@ -11,17 +11,10 @@ TraceMind is a lightweight, event-sourced **autonomous agent runtime** that foll
 
 ---
 
-Agent Evolution Timeline
-─────────────────────────────────────────────
-(1) Client + Server        (2) Digital Twin         (3) Autonomous Agent
-    ───────────────        ───────────────          ────────────────────
-    • Proxy / Adapter      • Mirror of entity       • Observer
-    • Sip, Websocket       • Present + feedback     • Executor
-    • Hide protocol        • IoT, Telecom           • Collaborator
-      complexity           • State visualization    • AI-driven autonomy
-                           • Simulation / feedback  • Coordination in MAS
-
- Value: simplify access    Value: insight + control Value: autonomy + learning
+| Client + Server | Digital Twin | Autonomous Agent |
+| --- | --- | --- |
+| • Proxy / adapter<br>• SIP / WebSocket<br>• Hide protocol complexity | • Mirror of entity<br>• Presence + feedback<br>• IoT / telecom<br>• State visualisation<br>• Simulation / feedback | • Observer<br>• Executor<br>• Collaborator<br>• AI-driven autonomy<br>• Coordination in MAS |
+| **Value:** simplify access | **Value:** insight + control | **Value:** autonomy + learning |
 
 ---
 
