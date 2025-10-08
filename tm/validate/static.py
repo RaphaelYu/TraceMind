@@ -162,7 +162,9 @@ def find_conflicts(
         for arm in arm_entries:
             name = str(arm.get("name", "")) or "<unnamed>"
             condition_data = arm.get("if", {})
-            mapping_condition = cast(Mapping[str, object], condition_data) if isinstance(condition_data, Mapping) else {}
+            mapping_condition = (
+                cast(Mapping[str, object], condition_data) if isinstance(condition_data, Mapping) else {}
+            )
             normalized.append((name, _normalize_condition(mapping_condition)))
 
         for idx in range(len(normalized)):
