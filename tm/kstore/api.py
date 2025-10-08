@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Callable, Dict, Iterable, Mapping, Protocol, Tuple
+from typing import Any, Callable, Dict, Iterable, Mapping, Protocol, Tuple
 from urllib.parse import ParseResult, urlparse, unquote
 
 DEFAULT_KSTORE_URL = "jsonl://./state.jsonl"
@@ -10,13 +10,13 @@ DEFAULT_KSTORE_URL = "jsonl://./state.jsonl"
 class KStore(Protocol):
     """Minimal key-value interface used by TraceMind subsystems."""
 
-    def put(self, key: str, value: Mapping[str, object]) -> None:
+    def put(self, key: str, value: Mapping[str, Any]) -> None:
         """Persist *value* under *key*, replacing any previous entry."""
 
-    def get(self, key: str) -> Mapping[str, object] | None:
+    def get(self, key: str) -> Mapping[str, Any] | None:
         """Return the stored value for *key* or None if missing."""
 
-    def scan(self, prefix: str) -> Iterable[Tuple[str, Mapping[str, object]]]:
+    def scan(self, prefix: str) -> Iterable[Tuple[str, Mapping[str, Any]]]:
         """Yield ``(key, value)`` pairs whose keys start with *prefix*."""
 
     def delete(self, key: str) -> bool:
@@ -122,11 +122,11 @@ __all__ = [
 
 # Ensure built-in drivers register themselves even when importing the api module directly.
 try:  # pragma: no cover - imports have side effects only
-    from . import jsonl as _jsonl_driver  # noqa: F401
+    from . import jsonl  # noqa: F401
 except Exception:  # pragma: no cover - optional
-    _jsonl_driver = None
+    pass
 
 try:  # pragma: no cover - optional dependency
-    from . import sqlite as _sqlite_driver  # noqa: F401
+    from . import sqlite  # noqa: F401
 except Exception:  # pragma: no cover - optional
-    _sqlite_driver = None
+    pass

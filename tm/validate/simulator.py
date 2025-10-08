@@ -68,11 +68,12 @@ def _parse_flow(flow_doc: Mapping[str, object]) -> FlowSpec:
             raise ValueError(f"step '{node_id}' must be mapping")
         next_field = spec.get("next", [])
         if isinstance(next_field, str):
-            next_steps = (next_field,)
+            next_list = [next_field]
         elif isinstance(next_field, Iterable):
-            next_steps = tuple(str(item) for item in next_field)
+            next_list = [str(item) for item in next_field]
         else:
-            next_steps = ()
+            next_list = []
+        next_steps = tuple(next_list)
         locks = _parse_lock_requests(spec.get("locks"))
         duration = spec.get("duration_ms", 50)
         try:
@@ -88,9 +89,10 @@ def _parse_flow(flow_doc: Mapping[str, object]) -> FlowSpec:
         for target in next_steps:
             incoming[target] = incoming.get(target, 0) + 1
 
-    entry = tuple(sorted(step for step in steps if incoming.get(step, 0) == 0))
-    if not entry:
-        entry = tuple(sorted(steps.keys())[:1])
+    entry_candidates = sorted(step for step in steps if incoming.get(step, 0) == 0)
+    if not entry_candidates and steps:
+        entry_candidates = [sorted(steps.keys())[0]]
+    entry = tuple(entry_candidates)
 
     return FlowSpec(id=flow_id, steps=steps, entrypoints=entry)
 

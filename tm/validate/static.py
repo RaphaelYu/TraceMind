@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import inf
-from typing import Dict, Iterable, Mapping, Sequence
+from typing import Dict, Iterable, Mapping, Sequence, cast
 
 
 @dataclass(frozen=True)
@@ -26,8 +26,8 @@ class _FieldCondition:
     numeric: _NumericRange | None
 
 
-def _collect(ids: Iterable[str]) -> Mapping[str, int]:
-    counts = {}
+def _collect(ids: Iterable[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for item in ids:
         counts[item] = counts.get(item, 0) + 1
     return counts
@@ -152,14 +152,18 @@ def find_conflicts(
 
     for policy in policies:
         pid = str(policy.get("policy_id", "")) or "<unknown>"
-        arms = policy.get("arms") or []
+        arms_raw = policy.get("arms")
+        arm_entries: list[Mapping[str, object]] = []
+        if isinstance(arms_raw, Iterable) and not isinstance(arms_raw, (str, bytes)):
+            for entry in arms_raw:
+                if isinstance(entry, Mapping):
+                    arm_entries.append(entry)
         normalized: list[tuple[str, Dict[str, _FieldCondition]]] = []
-        for arm in arms:
-            if not isinstance(arm, Mapping):
-                continue
+        for arm in arm_entries:
             name = str(arm.get("name", "")) or "<unnamed>"
-            condition = arm.get("if", {})
-            normalized.append((name, _normalize_condition(condition)))
+            condition_data = arm.get("if", {})
+            mapping_condition = cast(Mapping[str, object], condition_data) if isinstance(condition_data, Mapping) else {}
+            normalized.append((name, _normalize_condition(mapping_condition)))
 
         for idx in range(len(normalized)):
             name_a, cond_a = normalized[idx]
@@ -177,10 +181,8 @@ def find_conflicts(
     return conflicts
 
 
-def _normalize_condition(condition: object) -> Dict[str, _FieldCondition]:
+def _normalize_condition(condition: Mapping[str, object]) -> Dict[str, _FieldCondition]:
     result: Dict[str, _FieldCondition] = {}
-    if not isinstance(condition, Mapping):
-        return result
     for raw_key, raw_expr in condition.items():
         key = str(raw_key)
         expr = str(raw_expr)

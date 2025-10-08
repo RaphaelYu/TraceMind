@@ -2,7 +2,7 @@
 import os
 import time
 import zlib
-from typing import Iterable, Iterator, Tuple
+from typing import BinaryIO, Iterable, Iterator, Optional, Tuple
 
 MAGIC = b"TMG1"
 VER = 1
@@ -36,17 +36,21 @@ class BinaryLogWriter:
         self.dir = dir_path
         os.makedirs(self.dir, exist_ok=True)
         self.seg_bytes = seg_bytes
-        self.fp, self.path, self.size = None, None, 0
+        self.fp: Optional[BinaryIO] = None
+        self.path: Optional[str] = None
+        self.size = 0
         self._open_new_segment()
 
-    def _open_new_segment(self):
+    def _open_new_segment(self) -> None:
         ts = int(time.time())
         self.path = os.path.join(self.dir, f"events-{ts}.tmbl")
         self.fp = open(self.path, "ab", buffering=1024 * 1024)
         self.size = 0
 
-    def append_many(self, records: Iterable[Tuple[str, bytes]]):
+    def append_many(self, records: Iterable[Tuple[str, bytes]]) -> None:
         # records: (etype, payload_bytes)
+        if self.fp is None:
+            raise RuntimeError("binary log writer is closed")
         chunks = []
         for etype, payload in records:
             etb = etype.encode("utf-8")
@@ -63,11 +67,13 @@ class BinaryLogWriter:
             self.fp.close()
             self._open_new_segment()
 
-    def flush_fsync(self):
+    def flush_fsync(self) -> None:
+        if self.fp is None:
+            return
         self.fp.flush()
         os.fsync(self.fp.fileno())
 
-    def close(self):
+    def close(self) -> None:
         if self.fp is None:
             return
         self.fp.flush()

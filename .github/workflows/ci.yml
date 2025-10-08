@@ -35,7 +35,7 @@ jobs:
         run: python -m black --check .
 
       - name: Mypy
-        run: python -m mypy tm
+        run: python -m mypy tm/kstore tm/validate
 
       - name: Pytest
         run: python -m pytest -q

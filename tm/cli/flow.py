@@ -7,11 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Sequence, Tuple
 
-try:  # pragma: no cover - optional dependency
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover - handled in commands
-    yaml = None
-
 from tm.ana import IssueLevel, PlanResult, PlanStats, ValidationIssue, plan, validate
 
 
@@ -79,8 +74,10 @@ def _expand_patterns(patterns: Sequence[str]) -> Tuple[Path, ...]:
 
 
 def _load_graph_from_file(path: Path) -> Dict[str, Tuple[str, ...]]:
-    if yaml is None:
-        raise SystemExit("PyYAML is required for flow commands; install with `pip install pyyaml`.")
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+        raise SystemExit("PyYAML is required for flow commands; install with `pip install pyyaml`.") from exc
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
     steps = data.get("steps")

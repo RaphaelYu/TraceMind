@@ -5,15 +5,15 @@ import os
 import threading
 import uuid
 from pathlib import Path
-from typing import Iterable, Mapping, Tuple
+from typing import Any, Dict, Iterable, Mapping, Tuple, cast
 
 from .api import KStore, register_driver, resolve_path
 
 
-def _ensure_mapping(value: Mapping[str, object]) -> Mapping[str, object]:
+def _ensure_mapping(value: Mapping[str, Any]) -> Dict[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError("kstore values must be mappings")
-    return dict(value)
+    return {str(key): val for key, val in value.items()}
 
 
 class JsonlKStore(KStore):
@@ -21,8 +21,8 @@ class JsonlKStore(KStore):
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
         self._path = Path(path)
-        self._records: list[dict[str, object]] = []
-        self._state: dict[str, Mapping[str, object]] = {}
+        self._records: list[dict[str, Any]] = []
+        self._state: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
         self._load()
 
@@ -35,12 +35,13 @@ class JsonlKStore(KStore):
                         continue
                     record = json.loads(line)
                     if isinstance(record, dict):
-                        self._records.append(record)
-                        self._apply_record(record)
+                        record_dict = dict(record)
+                        self._records.append(record_dict)
+                        self._apply_record(record_dict)
         except FileNotFoundError:
             return
 
-    def _apply_record(self, record: Mapping[str, object]) -> None:
+    def _apply_record(self, record: Mapping[str, Any]) -> None:
         op = record.get("op")
         key = record.get("key")
         if not isinstance(key, str):
@@ -48,20 +49,20 @@ class JsonlKStore(KStore):
         if op == "put":
             value = record.get("value")
             if isinstance(value, Mapping):
-                self._state[key] = dict(value)
+                self._state[key] = _ensure_mapping(cast(Mapping[str, Any], value))
             else:
                 raise TypeError("jsonl record 'value' must be a mapping")
         elif op == "delete":
             self._state.pop(key, None)
 
-    def put(self, key: str, value: Mapping[str, object]) -> None:
+    def put(self, key: str, value: Mapping[str, Any]) -> None:
         if not isinstance(key, str):
             raise TypeError("key must be a string")
         record = {"op": "put", "key": key, "value": _ensure_mapping(value)}
         with self._lock:
             prev = self._state.get(key)
             self._records.append(record)
-            self._state[key] = dict(record["value"])
+            self._state[key] = _ensure_mapping(cast(Mapping[str, Any], record["value"]))
             try:
                 self._flush()
             except Exception:
@@ -72,17 +73,17 @@ class JsonlKStore(KStore):
                     self._state[key] = dict(prev)
                 raise
 
-    def get(self, key: str) -> Mapping[str, object] | None:
+    def get(self, key: str) -> Mapping[str, Any] | None:
         if not isinstance(key, str):
             raise TypeError("key must be a string")
         with self._lock:
             value = self._state.get(key)
-            return dict(value) if value is not None else None
+            return dict(value.items()) if value is not None else None
 
-    def scan(self, prefix: str) -> Iterable[Tuple[str, Mapping[str, object]]]:
+    def scan(self, prefix: str) -> Iterable[Tuple[str, Mapping[str, Any]]]:
         prefix = prefix or ""
         with self._lock:
-            items = [(k, dict(v)) for k, v in self._state.items() if k.startswith(prefix)]
+            items = [(k, dict(v.items())) for k, v in self._state.items() if k.startswith(prefix)]
         items.sort(key=lambda item: item[0])
         return items
 
@@ -100,7 +101,7 @@ class JsonlKStore(KStore):
             except Exception:
                 self._records.pop()
                 if prev is not None:
-                    self._state[key] = dict(prev)
+                    self._state[key] = dict(prev.items())
                 raise
         return existed
 

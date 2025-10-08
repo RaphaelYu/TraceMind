@@ -5,11 +5,6 @@ import json
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-try:  # pragma: no cover - optional dependency
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None
-
 from tm.validate import find_conflicts
 
 
@@ -33,8 +28,10 @@ def _expand(patterns: Sequence[str]) -> Sequence[Path]:
 
 
 def _load_yaml(path: Path) -> Mapping[str, object]:
-    if yaml is None:
-        raise SystemExit("PyYAML required; install with `pip install pyyaml`.")
+    try:
+        import yaml  # type: ignore[import-untyped]
+    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+        raise SystemExit("PyYAML required; install with `pip install pyyaml`.") from exc
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
         if not isinstance(data, Mapping):

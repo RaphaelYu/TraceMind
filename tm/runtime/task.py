@@ -10,7 +10,7 @@ DEFAULT_HEADERS: Mapping[str, Any] = {}
 DEFAULT_TRACE: Mapping[str, Any] = {}
 
 
-@dataclass(slots=True)
+@dataclass
 class TaskEnvelope:
     """Schema for tasks persisted in the queue."""
 
