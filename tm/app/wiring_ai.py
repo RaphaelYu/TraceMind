@@ -6,6 +6,7 @@ router = APIRouter(prefix="/ai")
 store = PolicyStore(path="data/policies.json")
 ctl = AIController(store, audit_dir="data/trace")
 
+
 @router.get("/policies")
 def get_policies():
     return ctl.list_policies()

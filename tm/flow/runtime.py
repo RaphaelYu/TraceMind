@@ -436,7 +436,7 @@ class FlowRuntime:
             self._record_queue_depth()
 
     async def _run_flow(self, request: _Request) -> Dict[str, Any]:
-        spec = request.spec
+
         if request.response_mode is ResponseMode.DEFERRED:
             return await self._run_deferred(request)
         result = await self._execute_immediately(request)
@@ -728,10 +728,7 @@ class FlowRuntime:
         outcome = _extract_str(output, "status")
         state = output.get("state") if isinstance(output, Mapping) else None
         if outcome is None and isinstance(state, Mapping):
-            outcome = (
-                _extract_str(state, "outcome")
-                or _extract_str(state, "status")
-            )
+            outcome = _extract_str(state, "outcome") or _extract_str(state, "status")
 
         cost = _extract_float(output, "cost_usd")
         rating = _extract_float(output, "user_rating")

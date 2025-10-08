@@ -3,18 +3,22 @@ import dataclasses
 from typing import Optional, Protocol, Mapping, Any
 from .base import Provider, LlmCallResult, LlmUsage, LlmError
 
+
 @dataclasses.dataclass
 class Pricing:
     in_per_million: float
     out_per_million: float
 
+
 class _AsyncTransport(Protocol):
     async def post(self, *, url: str, headers: Mapping[str, str], json: Mapping[str, Any]) -> dict: ...
+
 
 _DEFAULT_PRICING: dict[str, Pricing] = {
     # Example only; adjust outside if needed
     "gpt-4o-mini": Pricing(0.150, 0.600),
 }
+
 
 class OpenAIProvider(Provider):
     """Structure-complete provider with pluggable async transport.
@@ -22,17 +26,28 @@ class OpenAIProvider(Provider):
     By default it does *not* perform real network I/O unless a transport is provided.
     """
 
-    def __init__(self, *, api_key: Optional[str] = None, base_url: Optional[str] = None,
-                 pricing: Optional[dict[str, Pricing]] = None, transport: Optional[_AsyncTransport] = None):
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        pricing: Optional[dict[str, Pricing]] = None,
+        transport: Optional[_AsyncTransport] = None,
+    ):
         self.api_key = api_key or ""
         self.base_url = (base_url or "https://api.openai.com/v1/chat/completions").rstrip("/")
         self.pricing = pricing or _DEFAULT_PRICING
         self._transport = transport  # may be None → raises at call time
 
-    async def complete(self, *, model: str, prompt: str,
-                        temperature: float | None = None,
-                        top_p: float | None = None,
-                        timeout_s: float | None = None) -> LlmCallResult:
+    async def complete(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        timeout_s: float | None = None,
+    ) -> LlmCallResult:
         if self._transport is None:
             raise LlmError("PROVIDER_ERROR", "No transport configured for OpenAIProvider")
 

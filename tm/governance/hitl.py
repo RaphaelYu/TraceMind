@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
@@ -262,7 +262,11 @@ class HitlManager:
                 reason=str(entry.get("reason", "approval required")),
                 requested_by=str(entry.get("requested_by", "unknown")),
                 ttl_ms=int(entry.get("ttl_ms", self._config.default_ttl_ms)),
-                default_decision=ApprovalDecision.APPROVE if str(entry.get("default", "approve")).lower() == "approve" else ApprovalDecision.DENY,
+                default_decision=(
+                    ApprovalDecision.APPROVE
+                    if str(entry.get("default", "approve")).lower() == "approve"
+                    else ApprovalDecision.DENY
+                ),
                 actors=tuple(str(actor) for actor in entry.get("actors", []) if actor),
                 created_at=float(entry.get("created_at", time.time())),
                 payload=dict(entry.get("payload", {})),

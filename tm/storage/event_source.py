@@ -1,5 +1,7 @@
-from typing import Iterable, Iterator, Tuple
+from typing import Iterator, Tuple
+
 from .binlog import BinaryLogReader
+
 
 class EventSource:
     """Uniform iterator over events stored in the binary log.

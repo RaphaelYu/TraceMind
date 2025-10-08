@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Literal, Sequence
+from typing import Any, Dict, Literal, Sequence
 
 
 Operation = Literal["set", "remove"]
@@ -63,4 +63,3 @@ class Proposal:
                 for change in self.changes
             ],
         }
-

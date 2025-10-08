@@ -96,10 +96,8 @@ class Histogram(_MetricBase):
 
         def _inner() -> None:
             buckets = self._values.setdefault(
-                lbl, [
-                    _HistogramBucket(le=b, count=0.0)
-                    for b in self._buckets
-                ],
+                lbl,
+                [_HistogramBucket(le=b, count=0.0) for b in self._buckets],
             )
             v = float(value)
             for bucket in buckets:
@@ -112,10 +110,11 @@ class Histogram(_MetricBase):
 
     def samples(self) -> Dict[_LabelKey, List[_HistogramBucket]]:
         def _inner() -> Dict[_LabelKey, List[_HistogramBucket]]:
-            return {lbl: [
-                _HistogramBucket(le=bucket.le, count=bucket.count)
-                for bucket in buckets
-            ] for lbl, buckets in self._values.items() if not lbl or lbl[-1][0] != "_sum"}
+            return {
+                lbl: [_HistogramBucket(le=bucket.le, count=bucket.count) for bucket in buckets]
+                for lbl, buckets in self._values.items()
+                if not lbl or lbl[-1][0] != "_sum"
+            }
 
         return self._with_lock(_inner)
 
@@ -156,18 +155,9 @@ class Registry:
     def snapshot(self) -> Dict[str, Dict[str, object]]:
         with self._lock:
             return {
-                "counters": {
-                    name: counter.samples()
-                    for name, counter in self._counters.items()
-                },
-                "gauges": {
-                    name: gauge.samples()
-                    for name, gauge in self._gauges.items()
-                },
-                "histograms": {
-                    name: histogram.samples()
-                    for name, histogram in self._histograms.items()
-                },
+                "counters": {name: counter.samples() for name, counter in self._counters.items()},
+                "gauges": {name: gauge.samples() for name, gauge in self._gauges.items()},
+                "histograms": {name: histogram.samples() for name, histogram in self._histograms.items()},
             }
 
 
@@ -230,6 +220,7 @@ def counter(
     """Create a lightweight increment helper for a counter metric."""
 
     label_names = tuple(labels or ())
+
     def _inc(**kwargs: object) -> None:
         label_values: Dict[str, str] = {}
         for label in label_names:

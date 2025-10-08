@@ -1,12 +1,14 @@
 from __future__ import annotations
 import asyncio
-from typing import Any, Dict, Mapping, Optional, Callable
+from typing import Any, Dict, Mapping, Callable
+
 
 class InProcessTransport:
     """Test/dummy transport that dispatches to an in-process handler function.
 
     handler(payload) -> response dict
     """
+
     def __init__(self, handler: Callable[[Mapping[str, Any]], Dict[str, Any]]):
         self._h = handler
 

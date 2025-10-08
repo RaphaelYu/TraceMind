@@ -6,9 +6,9 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
-from .proposals import Change, Proposal
+from .proposals import Proposal
 
 
 @dataclass
@@ -95,7 +95,11 @@ class PolicyStore:
 
     def _write(self, snapshot: PolicySnapshot) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = self._path.with_suffix(self._path.suffix + ".tmp") if self._path.suffix else self._path.parent / (self._path.name + ".tmp")
+        temp_path = (
+            self._path.with_suffix(self._path.suffix + ".tmp")
+            if self._path.suffix
+            else self._path.parent / (self._path.name + ".tmp")
+        )
         payload = {
             "version": snapshot.version,
             "policies": snapshot.policies,

@@ -40,11 +40,7 @@ async def test_ai_reflect_success(monkeypatch):
         "summary": "Worked",
         "issues": ["none"],
         "guidance": "Proceed",
-        "plan_patch": {
-            "ops": [
-                {"op": "replace", "path": "/steps/0/inputs/value", "value": 42}
-            ]
-        },
+        "plan_patch": {"ops": [{"op": "replace", "path": "/steps/0/inputs/value", "value": 42}]},
         "policy_update": {},
     }
     responses = [
@@ -55,12 +51,14 @@ async def test_ai_reflect_success(monkeypatch):
     ]
     monkeypatch.setattr("tm.steps.ai_reflect.make_client", lambda provider: make_stub(responses))
 
-    result = await reflect_step({
-        "provider": "fake",
-        "model": "reflector",
-        "recent_outcomes": {"last": "ok"},
-        "retrospect_stats": {},
-    })
+    result = await reflect_step(
+        {
+            "provider": "fake",
+            "model": "reflector",
+            "recent_outcomes": {"last": "ok"},
+            "retrospect_stats": {},
+        }
+    )
     assert result["status"] == "ok"
     assert result["reflection"]["summary"] == "Worked"
     assert counters.metrics.get_counter("tm_reflect_requests_total").samples()[0][1] == 1.0
@@ -76,12 +74,14 @@ async def test_ai_reflect_invalid_json(monkeypatch):
     ]
     monkeypatch.setattr("tm.steps.ai_reflect.make_client", lambda provider: make_stub(responses))
 
-    result = await reflect_step({
-        "provider": "fake",
-        "model": "reflector",
-        "recent_outcomes": {},
-        "retrospect_stats": {},
-    })
+    result = await reflect_step(
+        {
+            "provider": "fake",
+            "model": "reflector",
+            "recent_outcomes": {},
+            "retrospect_stats": {},
+        }
+    )
     assert result["status"] == "error"
     assert result["error_code"] == "GUARD_BLOCKED"
     assert counters.metrics.get_counter("tm_reflect_failures_total").samples()[0][1] == 1.0
@@ -106,14 +106,16 @@ async def test_ai_reflect_retries_then_succeeds(monkeypatch):
     ]
     monkeypatch.setattr("tm.steps.ai_reflect.make_client", lambda provider: make_stub(responses))
 
-    result = await reflect_step({
-        "provider": "fake",
-        "model": "reflector",
-        "recent_outcomes": {},
-        "retrospect_stats": {},
-        "retries": 1,
-        "retry_backoff_ms": 0,
-    })
+    result = await reflect_step(
+        {
+            "provider": "fake",
+            "model": "reflector",
+            "recent_outcomes": {},
+            "retrospect_stats": {},
+            "retries": 1,
+            "retry_backoff_ms": 0,
+        }
+    )
     assert result["status"] == "ok"
     assert result["retries"] == 1
 
@@ -134,11 +136,13 @@ async def test_ai_reflect_rejects_invalid_patch(monkeypatch):
     ]
     monkeypatch.setattr("tm.steps.ai_reflect.make_client", lambda provider: make_stub(responses))
 
-    result = await reflect_step({
-        "provider": "fake",
-        "model": "reflector",
-        "recent_outcomes": {},
-        "retrospect_stats": {},
-    })
+    result = await reflect_step(
+        {
+            "provider": "fake",
+            "model": "reflector",
+            "recent_outcomes": {},
+            "retrospect_stats": {},
+        }
+    )
     assert result["status"] == "error"
     assert result["error_code"] == "GUARD_BLOCKED"

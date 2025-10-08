@@ -15,6 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover
         IMMEDIATE = "immediate"
         DEFERRED = "deferred"
 
+
 from tm.ai.hooks import DecisionHook, NullDecisionHook
 from tm.ai.policy_adapter import BindingPolicy, PolicyAdapter, PolicyDecision
 from tm.ai.tuner import BanditTuner
@@ -24,14 +25,14 @@ from .binding import BindingSpec, Operation, _coerce_operation
 
 logger = logging.getLogger(__name__)
 
+
 class RuntimeLike(Protocol):  # pragma: no cover - structural typing helper
     async def run(
         self,
         name: str,
         inputs: Optional[Mapping[str, Any]] = None,
         response_mode: Optional[ResponseMode] = None,
-    ) -> Dict[str, Any]:
-        ...
+    ) -> Dict[str, Any]: ...
 
 
 class OperationRouter:

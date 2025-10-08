@@ -18,6 +18,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback
     def _dumps(payload: dict[str, object]) -> bytes:
         return _json.dumps(payload).encode("utf-8")
 
+
 from tm.storage.binlog import BinaryLogWriter
 
 
@@ -105,11 +106,7 @@ class FlowTraceSink:
                 batch.append(item)
 
             now = time.monotonic()
-            if batch and (
-                len(batch) >= self._max_batch
-                or item is None
-                or (now - last_flush) >= self._flush_interval
-            ):
+            if batch and (len(batch) >= self._max_batch or item is None or (now - last_flush) >= self._flush_interval):
                 self._flush(batch)
                 batch.clear()
                 last_flush = now

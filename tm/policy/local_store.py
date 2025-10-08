@@ -2,11 +2,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 
+
 @dataclass
 class LocalPolicyStore:
     """Simple in-memory policy store used as fallback.
     Thread-safe concerns are delegated to the caller/async context.
     """
+
     arms: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     version: str = "local:0"
 

@@ -24,5 +24,5 @@ def test_export_flow_artifact_creates_json_and_dot(tmp_path):
     assert edges == {("start", "finish")}
 
     dot = artifact.dot_path.read_text("utf-8")
-    assert "digraph \"demo@" in dot
+    assert 'digraph "demo@' in dot
     assert "start" in dot and spec.step_id("start") in dot

@@ -8,6 +8,7 @@ from tm.utils.templating import render_template
 
 STEP_NAME = "ai.llm_call"
 
+
 async def run(params: dict[str, Any], *, flow_id: Optional[str] = None, step_id: Optional[str] = None) -> dict:
     """Execute the ai.llm_call step.
 
@@ -77,6 +78,7 @@ async def run(params: dict[str, Any], *, flow_id: Optional[str] = None, step_id:
             "cost_usd": result.usage.cost_usd,
         },
     }
+
 
 # Optional: auto-register with a step registry if present (no hard dep)
 try:  # pragma: no cover

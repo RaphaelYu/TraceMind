@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Dict, Iterable, List, Mapping, Tuple
+from typing import Dict, List, Tuple
 
 from tm.storage.binlog import BinaryLogReader
 
@@ -54,28 +54,34 @@ def load_window(dir_path: str, since: datetime | float | int, until: datetime | 
 
     entries: List[Dict[str, object]] = []
     for (name, label_key), total in counters.items():
-        entries.append({
-            "type": "counter",
-            "name": name,
-            "labels": dict(label_key),
-            "value": total,
-        })
+        entries.append(
+            {
+                "type": "counter",
+                "name": name,
+                "labels": dict(label_key),
+                "value": total,
+            }
+        )
     for (name, label_key), value in gauges.items():
-        entries.append({
-            "type": "gauge",
-            "name": name,
-            "labels": dict(label_key),
-            "value": value,
-        })
+        entries.append(
+            {
+                "type": "gauge",
+                "name": name,
+                "labels": dict(label_key),
+                "value": value,
+            }
+        )
     for (name, label_key), buckets in histograms.items():
         for bucket, total in buckets.items():
             labels = dict(label_key)
             labels["le"] = bucket
-            entries.append({
-                "type": "hist",
-                "name": name,
-                "labels": labels,
-                "value": total,
-            })
+            entries.append(
+                {
+                    "type": "hist",
+                    "name": name,
+                    "labels": labels,
+                    "value": total,
+                }
+            )
 
     return entries

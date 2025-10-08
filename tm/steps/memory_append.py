@@ -7,7 +7,9 @@ from tm.memory import current_store
 STEP_NAME = "helpers.memory_append"
 
 
-async def run(params: Dict[str, Any], *, flow_id: Optional[str] = None, step_id: Optional[str] = None) -> Dict[str, Any]:
+async def run(
+    params: Dict[str, Any], *, flow_id: Optional[str] = None, step_id: Optional[str] = None
+) -> Dict[str, Any]:
     session = str(params.get("session_id") or params.get("session") or "default")
     key = params.get("key")
     if not isinstance(key, str) or not key:

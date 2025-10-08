@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable
-
 from tm.flow.runtime import FlowRuntime
 from tm.flow.inspector import FlowInspector
 

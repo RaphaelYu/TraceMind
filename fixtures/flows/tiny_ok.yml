@@ -1,0 +1,6 @@
+steps:
+  start:
+    next: [mid]
+  mid:
+    next: [end]
+  end: {}

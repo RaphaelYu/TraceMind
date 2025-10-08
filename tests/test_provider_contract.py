@@ -2,6 +2,7 @@ import pytest
 from tm.ai.providers.fake import FakeProvider
 from tm.ai.providers.base import Provider, LlmCallResult
 
+
 @pytest.mark.asyncio
 async def test_fake_provider_contract():
     p: Provider = FakeProvider()

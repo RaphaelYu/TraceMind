@@ -59,6 +59,7 @@ async def test_run_immediate_follows_switch_default_path():
 
     await runtime.aclose()
 
+
 @pytest.mark.asyncio
 async def test_run_immediate_respects_switch_key_selection():
     spec = _build_flow_spec("branch", key="right")
@@ -71,6 +72,7 @@ async def test_run_immediate_respects_switch_key_selection():
     assert result["flow_id"] == "branch"
 
     await runtime.aclose()
+
 
 @pytest.mark.asyncio
 async def test_run_deferred_requires_policy_opt_in():

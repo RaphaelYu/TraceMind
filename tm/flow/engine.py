@@ -8,24 +8,32 @@ from .graph import FlowGraph, NodeKind
 from .registry import registry, checks
 from .policies import parse_policies_from_cfg, StepPolicies
 
+
 @dataclass
 class ExecContext:
     """Execution context passed to operators and checks."""
+
     flow_name: str
     trace_id: str
     vars: Dict[str, Any]
 
+
 @dataclass
 class StepResult:
     """Result summary for a single step."""
-    status: str                      # "ok" | "error"
+
+    status: str  # "ok" | "error"
     output: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     duration_ms: float = 0.0
+
+
 class Engine:
     """Synchronous engine with SWITCH/PARALLEL, before/after checks, retry/timeout, and Airflow-style tracing."""
+
     def __init__(self, tracer: Optional[Any] = None):
         from .tracer import AirflowStyleTracer
+
         self.tracer = tracer or AirflowStyleTracer()
 
     # --------------- internal helpers ---------------
@@ -51,7 +59,9 @@ class Engine:
         for name in names:
             checks.get(name)(ctx, call_in)
 
-    def _run_operator(self, op_name: str, ctx: ExecContext, call_in: Dict[str, Any], pol: StepPolicies) -> Dict[str, Any]:
+    def _run_operator(
+        self, op_name: str, ctx: ExecContext, call_in: Dict[str, Any], pol: StepPolicies
+    ) -> Dict[str, Any]:
         attempts = 0
         last_exc: Optional[Exception] = None
         while attempts < pol.retry.max_attempts:
@@ -137,15 +147,16 @@ class Engine:
                 pol = parse_policies_from_cfg(step.cfg)
                 outputs: Dict[str, Any] = {}
                 try:
+
                     def _one(op_name: str):
                         self._run_checks(step.cfg.get("before"), ctx, call_in_base)
                         out = self._run_operator(op_name, ctx, call_in_base, pol)
                         self._run_checks(step.cfg.get("after"), ctx, {"**out": out, **call_in_base})
                         return op_name, out
+
                     with ThreadPoolExecutor(max_workers=max_workers) as ex:
                         futs = {ex.submit(_one, u): u for u in uses}
                         for fut in as_completed(futs):
-                            u = futs[fut]
                             name, out = fut.result()
                             outputs[name] = out
                     res = StepResult(status="ok", output={"parallel": outputs}, duration_ms=(time.time() - t0) * 1000)

@@ -4,15 +4,16 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Mapping, Optional
 
-from .base import LeasedTask, WorkQueue
+from .base import WorkQueue
 from ..idempotency import IdempotencyResult, IdempotencyStore
 from ..task import TaskEnvelope
 from tm.obs import counters
 
 
 LOGGER = logging.getLogger("tm.queue.manager")
+
 
 @dataclass(frozen=True)
 class ManagedLease:
@@ -75,7 +76,7 @@ class TaskQueueManager:
         envelope = TaskEnvelope.new(flow_id=flow_id, input=input, headers=headers or {}, trace=trace or {})
         idem_key = envelope.idempotency_key
         composite = envelope.composite_key
-        ttl = idempotency_ttl or self._default_ttl
+
         if idem_key:
             cached = self._idempotency.get(composite)
             if cached is not None:
@@ -147,10 +148,12 @@ class TaskQueueManager:
         counters.metrics.get_counter(
             "tm_queue_nacked_total",
             help="Total tasks nacked",
-        ).inc(labels={
-            "flow": lease.flow_id,
-            "requeue": str(requeue).lower(),
-        })
+        ).inc(
+            labels={
+                "flow": lease.flow_id,
+                "requeue": str(requeue).lower(),
+            }
+        )
         self._record_queue_metrics()
 
     def record_result(

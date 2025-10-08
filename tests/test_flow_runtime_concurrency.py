@@ -52,9 +52,7 @@ async def test_runtime_concurrency_and_backpressure():
 
     total = 2000
 
-    results = await asyncio.gather(
-        *[runtime.run("slow", inputs={"index": i}) for i in range(total)]
-    )
+    results = await asyncio.gather(*[runtime.run("slow", inputs={"index": i}) for i in range(total)])
 
     await runtime.aclose()
 

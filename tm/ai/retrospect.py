@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Deque, Dict, Iterable, Mapping, Optional
+from typing import Deque, Dict, Iterable, Optional
 
 from tm.flow.runtime import FlowRunRecord
 
@@ -52,9 +52,7 @@ class Retrospect:
             self._latest_ts[binding] = max(self._latest_ts[binding], end_ts)
             self._evict_older_than(runs, end_ts - self._retention_seconds)
 
-    def aggregates(
-        self, window_seconds: float, binding: Optional[str] = None
-    ) -> Dict[str, AggregateMetrics]:
+    def aggregates(self, window_seconds: float, binding: Optional[str] = None) -> Dict[str, AggregateMetrics]:
         window = max(0.0, float(window_seconds))
         with self._lock:
             if binding is not None:
@@ -63,10 +61,7 @@ class Retrospect:
                 return {binding: self._compute(entries, latest, window)}
             else:
                 keys = list(self._entries.keys())
-                return {
-                    key: self._compute(self._entries[key], self._latest_ts.get(key, 0.0), window)
-                    for key in keys
-                }
+                return {key: self._compute(self._entries[key], self._latest_ts.get(key, 0.0), window) for key in keys}
 
     def compare(
         self,

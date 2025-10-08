@@ -1,4 +1,6 @@
-import queue, json
+import queue
+import json
+
 
 class SSEHub:
     def __init__(self):

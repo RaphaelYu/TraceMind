@@ -54,9 +54,16 @@ class DockerClient:
             raise RuntimeError(f"Docker API error {status}")
         return json.loads(payload) if payload else None
 
-    def _request(self, method: str, path: str, *, params: Optional[Dict[str, str]] = None,
-                 body: Optional[str] = None, headers: Optional[Dict[str, str]] = None,
-                 expect_json: bool = True) -> int | str:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[Dict[str, str]] = None,
+        body: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+        expect_json: bool = True,
+    ) -> int | str:
         status, payload = self._perform(method, path, params=params, body=body, headers=headers)
         if status >= 400:
             raise RuntimeError(f"Docker API error {status}")

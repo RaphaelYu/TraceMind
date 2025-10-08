@@ -27,6 +27,4 @@ def test_binlog_writer_rolls_segments_and_reader_streams_records(monkeypatch: py
         reader = BinaryLogReader(tmp)
         out = list(reader.scan())
 
-        assert [(etype, payload) for etype, payload in out] == [
-            ("TypeA", frame[1]) for frame in frames
-        ]
+        assert [(etype, payload) for etype, payload in out] == [("TypeA", frame[1]) for frame in frames]

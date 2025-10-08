@@ -1,5 +1,3 @@
-import pytest
-
 from tm.flow.operations import Operation
 from tm.flow.spec import FlowSpec, StepDef
 from tm.flow.inspector import FlowInspector

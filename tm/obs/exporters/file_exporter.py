@@ -7,7 +7,7 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Mapping
+from typing import Dict, List, Optional
 
 from tm.obs.counters import Registry
 from tm.obs import counters
@@ -23,22 +23,26 @@ def _flatten_snapshot(snapshot: Dict[str, Dict[str, object]]) -> List[Dict[str, 
                     for bucket in bucket_list:
                         labels = dict(base_labels)
                         labels["le"] = str(bucket.le)
-                        entries.append({
-                            "type": "hist",
-                            "name": name,
-                            "labels": labels,
-                            "value": bucket.count,
-                        })
+                        entries.append(
+                            {
+                                "type": "hist",
+                                "name": name,
+                                "labels": labels,
+                                "value": bucket.count,
+                            }
+                        )
         else:
             metric_kind = "counter" if metric_type == "counters" else "gauge"
             for name, samples in named_metrics.items():
                 for label_key, value in samples:
-                    entries.append({
-                        "type": metric_kind,
-                        "name": name,
-                        "labels": dict(label_key),
-                        "value": value,
-                    })
+                    entries.append(
+                        {
+                            "type": metric_kind,
+                            "name": name,
+                            "labels": dict(label_key),
+                            "value": value,
+                        }
+                    )
     return entries
 
 

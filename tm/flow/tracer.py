@@ -1,6 +1,9 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
-import time, uuid, json
+import time
+import uuid
+import json
+
 
 class AirflowStyleTracer:
     def __init__(self, dag_id_prefix: str = "tm_flow", capture_outputs: bool = True, xcom_bytes_limit: int = 16_000):
@@ -15,19 +18,24 @@ class AirflowStyleTracer:
         run_id = f"af_{uuid.uuid4().hex}"
         now = time.time()
         dag_id = f"{self.dag_id_prefix}.{flow_name}"
-        self._runs[run_id] = {"dag_id": dag_id, "run_id": run_id, "start_date": now, "end_date": None, "state": "running"}
+        self._runs[run_id] = {
+            "dag_id": dag_id,
+            "run_id": run_id,
+            "start_date": now,
+            "end_date": None,
+            "state": "running",
+        }
         self._tis[run_id] = {}
         self._edges.setdefault(run_id, [])
         return run_id
 
     def on_step(self, run_id: str, step, result, inputs: Dict[str, Any]):
-        now = time.time()
         ti = {
             "dag_id": self._runs[run_id]["dag_id"],
             "run_id": run_id,
             "task_id": step.id,
             "state": "success" if result.status == "ok" else "failed",
-            "duration": result.duration_ms/1000.0,
+            "duration": result.duration_ms / 1000.0,
             "operator": step.uses,
             "kind": step.kind.name,
             "in": inputs,

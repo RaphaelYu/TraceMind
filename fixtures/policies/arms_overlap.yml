@@ -1,0 +1,8 @@
+policy_id: p1
+arms:
+- name: a
+  if:
+    cost: <=0.5
+- name: b
+  if:
+    cost: <0.6

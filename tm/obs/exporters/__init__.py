@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Mapping, MutableMapping, Optional, Protocol
+from typing import Callable, Dict, Mapping, Optional, Protocol
 
 from tm.obs.counters import Registry
 from tm.obs import counters

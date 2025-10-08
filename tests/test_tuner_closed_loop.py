@@ -1,4 +1,3 @@
-import math
 import pytest
 
 from tm.ai.retrospect import Retrospect

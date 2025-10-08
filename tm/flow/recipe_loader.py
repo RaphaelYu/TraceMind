@@ -108,7 +108,6 @@ class RecipeLoader:
 
     def _build_spec(self, flow: Dict[str, Any]) -> FlowSpec:
         flow_id = self._expect_str(flow, "id")
-        flow_version = self._expect_str(flow, "version")
         entry = self._expect_str(flow, "entry")
 
         spec = FlowSpec(name=flow_id, flow_id=flow_id)
@@ -265,9 +264,7 @@ class RecipeLoader:
                     case_targets.add(default)
             missing = case_targets - targets
             if missing:
-                raise RecipeError(
-                    f"Switch step '{step_id}' missing edge(s) for targets: {', '.join(sorted(missing))}"
-                )
+                raise RecipeError(f"Switch step '{step_id}' missing edge(s) for targets: {', '.join(sorted(missing))}")
         elif op is Operation.PARALLEL:
             branches = config.get("branches")
             if not isinstance(branches, list) or not all(isinstance(b, str) for b in branches):

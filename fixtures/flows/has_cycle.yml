@@ -1,0 +1,5 @@
+steps:
+  a:
+    next: [b]
+  b:
+    next: [a]

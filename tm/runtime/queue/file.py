@@ -12,7 +12,12 @@ from typing import Any, Dict, Mapping, MutableMapping, Optional, Sequence
 try:  # pragma: no cover - platform specific
     import fcntl  # type: ignore[attr-defined]
 except ModuleNotFoundError:  # pragma: no cover
-    fcntl = None  # type: ignore
+    fcntl = None  # type: ignore[attr-defined]
+
+try:  # pragma: no cover - windows fallback
+    import msvcrt  # type: ignore[attr-defined]
+except ModuleNotFoundError:  # pragma: no cover
+    msvcrt = None  # type: ignore[attr-defined]
 
 from .base import LeasedTask, WorkQueue
 
@@ -26,6 +31,7 @@ class _FileEntry:
     available_at: float
     lease_deadline: float = 0.0
     token: str | None = None
+    acked: bool = False
 
 
 @dataclass
@@ -53,6 +59,23 @@ class _FileSegment:
             self.acked.add(offset)
             if self.pending > 0:
                 self.pending -= 1
+
+
+def _lock_file(fh) -> None:
+    if fcntl is not None:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+    elif msvcrt is not None:
+        fh.seek(0)
+        # Lock a single byte as a coarse mutex
+        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+
+
+def _unlock_file(fh) -> None:
+    if fcntl is not None:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    elif msvcrt is not None:
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 class FileWorkQueue(WorkQueue):
@@ -103,26 +126,31 @@ class FileWorkQueue(WorkQueue):
             if segment is None:
                 raise RuntimeError("active segment missing after ensure")
             offset = self._allocate_offset()
-            record = json.dumps(
-                {
-                    "offset": offset,
-                    "task": payload,
-                    "enqueued_at": time.time(),
-                },
-                separators=(",", ":"),
-            ).encode("utf-8") + b"\n"
+            record = (
+                json.dumps(
+                    {
+                        "offset": offset,
+                        "task": payload,
+                        "enqueued_at": time.time(),
+                    },
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                + b"\n"
+            )
             if segment.size_bytes + len(record) > self._segment_max_bytes and segment.record_count > 0:
                 self._rotate_segment_unlocked()
                 segment = self._current_segment
                 if segment is None:
                     raise RuntimeError("active segment missing after rotate")
-            fd = os.open(segment.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND)
-            try:
-                os.write(fd, record)
-                if self._fsync_on_put:
-                    os.fsync(fd)
-            finally:
-                os.close(fd)
+            with open(segment.path, "ab") as fp:
+                _lock_file(fp)
+                try:
+                    fp.write(record)
+                    if self._fsync_on_put:
+                        fp.flush()
+                        os.fsync(fp.fileno())
+                finally:
+                    _unlock_file(fp)
             available_at = _extract_available_at(payload)
             with self._lock:
                 segment.add_record(offset, len(record))
@@ -221,11 +249,7 @@ class FileWorkQueue(WorkQueue):
 
     def oldest_available_at(self) -> Optional[float]:
         with self._lock:
-            candidates = [
-                entry.available_at
-                for entry in self._entries.values()
-                if entry.token is None
-            ]
+            candidates = [entry.available_at for entry in self._entries.values() if entry.token is None]
         if not candidates:
             return None
         return min(candidates)
@@ -293,11 +317,20 @@ class FileWorkQueue(WorkQueue):
                         start_offset = offset
                     end_offset = offset
                     record_count += 1
-                    task = data.get("task")
+                    raw_task = data.get("task")
+                    task_payload: Mapping[str, Any]
+                    if isinstance(raw_task, Mapping):
+                        task_payload = raw_task
+                    else:
+                        task_payload = {}
                     if offset not in acked:
                         pending += 1
-                        available_at = _extract_available_at(data)
-                        self._entries[offset] = _FileEntry(task=task, segment_seq=seq, available_at=available_at)
+                        available_at = _extract_available_at(task_payload)
+                        self._entries[offset] = _FileEntry(
+                            task=task_payload,
+                            segment_seq=seq,
+                            available_at=available_at,
+                        )
                         self._push_ready(offset, available_at)
         except FileNotFoundError:
             pass
@@ -354,8 +387,7 @@ class FileWorkQueue(WorkQueue):
         path = self._meta_path
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a+b") as fh:
-            if fcntl is not None:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            _lock_file(fh)
             try:
                 fh.seek(0)
                 data = fh.read().decode("utf-8").strip()
@@ -365,15 +397,13 @@ class FileWorkQueue(WorkQueue):
                     fh.write(str(max_seq).encode("utf-8"))
                     fh.truncate()
             finally:
-                if fcntl is not None:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                _unlock_file(fh)
 
     def _initialize_offset(self, initial_value: int) -> None:
         path = self._offset_path
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a+b") as fh:
-            if fcntl is not None:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            _lock_file(fh)
             try:
                 fh.seek(0)
                 data = fh.read().decode("utf-8").strip()
@@ -385,15 +415,13 @@ class FileWorkQueue(WorkQueue):
                 else:
                     initial_value = current
             finally:
-                if fcntl is not None:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                _unlock_file(fh)
         self._next_offset = initial_value
 
     def _allocate_segment_seq(self) -> int:
         path = self._meta_path
         with open(path, "r+b") as fh:
-            if fcntl is not None:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            _lock_file(fh)
             try:
                 fh.seek(0)
                 data = fh.read().decode("utf-8").strip()
@@ -404,14 +432,12 @@ class FileWorkQueue(WorkQueue):
                 fh.truncate()
                 return current
             finally:
-                if fcntl is not None:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                _unlock_file(fh)
 
     def _allocate_offset(self) -> int:
         path = self._offset_path
         with open(path, "r+b") as fh:
-            if fcntl is not None:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            _lock_file(fh)
             try:
                 fh.seek(0)
                 data = fh.read().decode("utf-8").strip()
@@ -423,8 +449,7 @@ class FileWorkQueue(WorkQueue):
                 self._next_offset = next_value
                 return current
             finally:
-                if fcntl is not None:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                _unlock_file(fh)
 
     def _push_ready(self, offset: int, available_at: float) -> None:
         if offset in self._ready_set:
@@ -477,6 +502,7 @@ class FileWorkQueue(WorkQueue):
             if lock_fp is not None:
                 fcntl.flock(lock_fp.fileno(), fcntl.LOCK_UN)
                 lock_fp.close()
+
     def _maybe_compact_head(self) -> None:
         with self._io_lock:
             while self._segments:

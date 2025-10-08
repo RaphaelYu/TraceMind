@@ -70,7 +70,9 @@ class ToolRegistry:
         self._tools: Dict[str, ToolEntry] = {}
         self._allow = AllowRegistry(kind="tool", audit=audit)
 
-    def register(self, tool_id: str, handler: Callable[..., Any], *, labels: Optional[Mapping[str, str]] = None) -> ToolEntry:
+    def register(
+        self, tool_id: str, handler: Callable[..., Any], *, labels: Optional[Mapping[str, str]] = None
+    ) -> ToolEntry:
         if not isinstance(tool_id, str) or not tool_id.strip():
             raise ValueError("tool_id must be a non-empty string")
         normalized = tool_id.strip()

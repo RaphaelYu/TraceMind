@@ -4,6 +4,7 @@ from tm.policy.local_store import LocalPolicyStore
 from tm.policy.mcp_client import MCPClient
 from tm.policy.transports import InProcessTransport
 
+
 @pytest.mark.asyncio
 async def test_fallback_local_only():
     adapter = PolicyAdapter(mcp=None, local=LocalPolicyStore())
@@ -11,14 +12,16 @@ async def test_fallback_local_only():
     assert await adapter.get("arm1") == {"x": 1}
     assert await adapter.list_arms() == ["arm1"]
 
+
 def _handler_ok(req):
     if req.get("method") == "policy.get":
-        return {"jsonrpc":"2.0","id":req["id"],"result":{"x": 99}}
+        return {"jsonrpc": "2.0", "id": req["id"], "result": {"x": 99}}
     if req.get("method") == "policy.update":
-        return {"jsonrpc":"2.0","id":req["id"],"result":req["params"]["params"]}
+        return {"jsonrpc": "2.0", "id": req["id"], "result": req["params"]["params"]}
     if req.get("method") == "policy.list_arms":
-        return {"jsonrpc":"2.0","id":req["id"],"result":["armA","armB"]}
-    return {"jsonrpc":"2.0","id":req["id"],"error":{"code":-32601,"message":"Method not found"}}
+        return {"jsonrpc": "2.0", "id": req["id"], "result": ["armA", "armB"]}
+    return {"jsonrpc": "2.0", "id": req["id"], "error": {"code": -32601, "message": "Method not found"}}
+
 
 @pytest.mark.asyncio
 async def test_remote_then_local_sync():
@@ -32,6 +35,7 @@ async def test_remote_then_local_sync():
     assert await local.get("armZ") == {"y": 7}
     # list from remote
     assert await adapter.list_arms() == ["armA", "armB"]
+
 
 @pytest.mark.asyncio
 async def test_remote_fail_fallback_local():

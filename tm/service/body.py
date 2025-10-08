@@ -15,6 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover
         IMMEDIATE = "immediate"
         DEFERRED = "deferred"
 
+
 from tm.model.entity import Entity
 from tm.model.spec import ModelSpec
 

@@ -24,8 +24,7 @@ class LimitSettings:
 
     def is_active(self) -> bool:
         return self.enabled and any(
-            value is not None
-            for value in (self.qps, self.concurrency, self.tokens_per_min, self.cost_per_hour)
+            value is not None for value in (self.qps, self.concurrency, self.tokens_per_min, self.cost_per_hour)
         )
 
 
@@ -58,9 +57,7 @@ class BreakerSettings:
     half_open_max_calls: int = 1
 
     def is_active(self) -> bool:
-        return self.enabled and (
-            self.failure_threshold > 0 or self.timeout_threshold > 0
-        )
+        return self.enabled and (self.failure_threshold > 0 or self.timeout_threshold > 0)
 
 
 @dataclass(frozen=True)

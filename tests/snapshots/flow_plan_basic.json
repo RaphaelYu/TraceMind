@@ -1,0 +1,53 @@
+{
+  "flows": [
+    {
+      "path": "fixtures/flows/tiny_ok.yml",
+      "stats": {
+        "depth": 3,
+        "max_out_degree": 1,
+        "max_width": 1,
+        "nodes": 3
+      },
+      "layers": [
+        [
+          "start"
+        ],
+        [
+          "mid"
+        ],
+        [
+          "end"
+        ]
+      ],
+      "issues": []
+    },
+    {
+      "path": "fixtures/flows/wide_deep.yml",
+      "stats": {
+        "depth": 4,
+        "max_out_degree": 3,
+        "max_width": 3,
+        "nodes": 8
+      },
+      "layers": [
+        [
+          "start"
+        ],
+        [
+          "branch_a",
+          "branch_b",
+          "branch_c"
+        ],
+        [
+          "branch_aa",
+          "branch_bb",
+          "branch_cc"
+        ],
+        [
+          "end"
+        ]
+      ],
+      "issues": []
+    }
+  ]
+}

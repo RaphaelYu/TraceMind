@@ -40,12 +40,12 @@ class _PlanRequest:
         sections.append(
             "Output schema:\n"
             "{\n"
-            "  \"version\": \"plan.v1\",\n"
-            "  \"goal\": string,\n"
-            "  \"constraints\": object (with \"max_steps\" and/or \"budget_usd\"),\n"
-            "  \"allow\": {\"tools\": [...], \"flows\": [...]},\n"
-            "  \"steps\": [\n"
-            "    {\"id\": string, \"kind\": \"tool\"|\"flow\", \"ref\": string, \"inputs\": object, \"on_error\": {optional}}\n"
+            '  "version": "plan.v1",\n'
+            '  "goal": string,\n'
+            '  "constraints": object (with "max_steps" and/or "budget_usd"),\n'
+            '  "allow": {"tools": [...], "flows": [...]},\n'
+            '  "steps": [\n'
+            '    {"id": string, "kind": "tool"|"flow", "ref": string, "inputs": object, "on_error": {optional}}\n'
             "  ]\n"
             "}\n"
         )
@@ -53,19 +53,10 @@ class _PlanRequest:
         if self.context:
             sections.append(f"Context: {self.context}")
         if self.constraints:
-            sections.append(
-                "Constraints: " + json.dumps(self.constraints, ensure_ascii=False, separators=(',', ':'))
-            )
-        sections.append(
-            "Allowed tools: " + (", ".join(self.allow_tools) if self.allow_tools else "none")
-        )
-        sections.append(
-            "Allowed flows: " + (", ".join(self.allow_flows) if self.allow_flows else "none")
-        )
-        sections.append(
-            "Rules: steps[*].ref must exist in the allow list."
-            " Use compact JSON with double quotes."
-        )
+            sections.append("Constraints: " + json.dumps(self.constraints, ensure_ascii=False, separators=(",", ":")))
+        sections.append("Allowed tools: " + (", ".join(self.allow_tools) if self.allow_tools else "none"))
+        sections.append("Allowed flows: " + (", ".join(self.allow_flows) if self.allow_flows else "none"))
+        sections.append("Rules: steps[*].ref must exist in the allow list." " Use compact JSON with double quotes.")
         return "\n\n".join(sections)
 
 
@@ -199,7 +190,7 @@ async def run(params: dict[str, Any], *, flow_id: Optional[str] = None, step_id:
 
     overall_start = time.perf_counter()
     while attempt < attempts:
-        start = time.perf_counter()
+
         attempt += 1
         try:
             call_result = await client.call(

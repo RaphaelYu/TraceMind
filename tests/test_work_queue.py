@@ -74,7 +74,8 @@ def test_file_queue_compacts_segments(tmp_path: Path):
     queue_dir = tmp_path / "queue"
     queue = FileWorkQueue(str(queue_dir), segment_max_bytes=200)
 
-    first_offsets = [queue.put({"payload": "x" * 16, "i": i}) for i in range(5)]
+    for i in range(5):
+        queue.put({"payload": "x" * 16, "i": i})
     leased_first = queue.lease(5, lease_ms=1000)
     for task in leased_first:
         queue.ack(task.offset, task.token)

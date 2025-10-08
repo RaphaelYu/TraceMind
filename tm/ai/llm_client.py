@@ -1,10 +1,10 @@
 from __future__ import annotations
 import asyncio
-from typing import Optional
 from .providers.base import Provider, LlmCallResult, LlmError
 from .providers.fake import FakeProvider
 from .providers.openai import OpenAIProvider
 from tm.utils.async_tools import with_timeout, with_retry
+
 
 class AsyncLLMClient:
     def __init__(self, provider: Provider):
@@ -42,6 +42,7 @@ class AsyncLLMClient:
                 raise LlmError("RUN_CANCELLED", "task cancelled")
 
         return await with_retry(_once, max_retries=max_retries, is_retryable=_is_retryable)
+
 
 def make_client(provider_name: str, **kwargs) -> AsyncLLMClient:
     name = provider_name.lower().strip()

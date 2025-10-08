@@ -1,10 +1,11 @@
 from __future__ import annotations
-import asyncio
 import itertools
 from typing import Any, Dict, Optional, Protocol, Mapping
 
+
 class MCPTransport(Protocol):
     async def request(self, payload: Mapping[str, Any], *, timeout_s: float | None = None) -> Dict[str, Any]: ...
+
 
 class JSONRPCError(Exception):
     def __init__(self, code: int, message: str, data: Any = None):
@@ -12,15 +13,19 @@ class JSONRPCError(Exception):
         self.code = code
         self.data = data
 
+
 class MCPClient:
     """Minimal JSON-RPC 2.0 client for MCP policy endpoint.
     Transport is pluggable (e.g., websockets/aiohttp/tcp/stdio).
     """
+
     def __init__(self, transport: MCPTransport):
         self._t = transport
         self._seq = itertools.count(1)
 
-    async def call(self, method: str, params: Optional[Dict[str, Any]] = None, *, timeout_s: float | None = None) -> Any:
+    async def call(
+        self, method: str, params: Optional[Dict[str, Any]] = None, *, timeout_s: float | None = None
+    ) -> Any:
         req = {"jsonrpc": "2.0", "id": next(self._seq), "method": method}
         if params is not None:
             req["params"] = params

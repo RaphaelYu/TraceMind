@@ -93,6 +93,8 @@ Agent Evolution Timeline
 - [Flow & policy recipes](docs/recipes-v1.md)
 - [Helpers reference](docs/helpers.md)
 - [Policy lifecycle & MCP integration](docs/policy.md)
+- [Storage configuration](docs/storage.md)
+- [Validation & simulation workflows](docs/validation.md)
 
 ### Scale & Reliability
 
@@ -111,7 +113,7 @@ Agent Evolution Timeline
 
 ```bash
 # Install (use venv if you like)
-pip install -U "git+https://github.com/RaphaelYu/TraceMind.git@v1.0.3"
+pip install -U "git+https://github.com/RaphaelYu/TraceMind.git@v1.0.4"
 
 # Version & pipeline health
 tm --version
@@ -150,6 +152,15 @@ async def main():
 asyncio.run(main())
 PY
 ```
+
+### Always-on Agent quickstart
+
+Reuse the copy/paste examples in the validation guide to keep agents continuously self-checking:
+
+- [`docs/validation.md`](docs/validation.md) — `tm flow lint`, `tm flow plan`, `tm validate`, `tm simulate`.
+- [`scripts/validate_examples.sh`](scripts/validate_examples.sh) — end-to-end smoke test that runs as part of CI.
+
+Need to configure persistence for production?  See [`docs/storage.md`](docs/storage.md) for KStore URLs and fallback behaviour.
 
 ### Run in container
 
