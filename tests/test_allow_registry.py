@@ -2,11 +2,10 @@ import pytest
 
 from tm.ai.registry import (
     PolicyForbiddenError,
+    audit_log,
     flow_allow_registry,
-    reset_audit_log,
     reset_registries,
     tool_registry,
-    audit_log,
 )
 
 

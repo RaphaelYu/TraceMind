@@ -1,6 +1,5 @@
 from __future__ import annotations
 import asyncio
-from typing import Optional
 from .providers.base import Provider, LlmCallResult, LlmError
 from .providers.fake import FakeProvider
 from .providers.openai import OpenAIProvider

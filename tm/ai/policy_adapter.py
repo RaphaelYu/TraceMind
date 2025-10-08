@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence, Tuple
-from urllib import error, request
+from urllib import request
 
 from tm.flow.runtime import FlowRunRecord
 from tm.ai.tuner import BanditTuner

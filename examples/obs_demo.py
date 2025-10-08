@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Mapping
 
 from tm.obs.counters import Registry, counter
-from tm.obs.exporters import Exporter, register_exporter
+from tm.obs.exporters import register_exporter
 from tm.obs import counters
 
 

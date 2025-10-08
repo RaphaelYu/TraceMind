@@ -75,7 +75,6 @@ jitter_ms = 0
     supervisor = TaskWorkerSupervisor(opts)
     # reset metrics
     _reset_for_tests()
-    before_live = _gauge_value("tm_workers_live")
     supervisor.start()
     try:
         deadline = time.time() + 8.0

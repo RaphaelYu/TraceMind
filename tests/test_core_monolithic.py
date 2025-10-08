@@ -1,4 +1,3 @@
-import json
 import time
 import uuid
 from concurrent.futures import TimeoutError as FuturesTimeout
@@ -230,7 +229,7 @@ def test_static_analyzer_detects_issues():
     a = bad_flow.task("a", uses="alpha")
     s = bad_flow.switch("s", key_from="$.vars.a.value", default="_DEFAULT")
     p = bad_flow.parallel("p", uses=["beta", "gamma"], max_workers=2)
-    z = bad_flow.task("z", uses="missing")
+    bad_flow.task("z", uses="missing")
     end = bad_flow.finish("end")
     chain(bad_flow, a, s)
     bad_flow.link_case(s, p, case=True)
@@ -380,4 +379,3 @@ def test_engine_run_success_and_failure_paths():
     bad_run_id, _ = engine.run(flow, inputs={"x": 2})
     dag_run_bad, _, _ = tracer.get_run(bad_run_id)
     assert dag_run_bad["state"] == "failed"
-

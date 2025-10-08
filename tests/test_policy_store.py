@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 from tm.ai.policy_store import PolicyStore
 from tm.ai.proposals import Change, Proposal
 
