@@ -19,9 +19,9 @@ from tm.daemon import (
     stop_daemon,
     write_state,
 )
+from tm.runtime.queue.file import FileWorkQueue
 
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="daemon tests are POSIX-only")
-from tm.runtime.queue.file import FileWorkQueue
 
 
 def test_collect_status_reports_queue_counts(tmp_path: Path) -> None:
