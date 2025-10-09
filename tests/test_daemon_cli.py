@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 
 from tm import cli as tm_cli
 from tm.daemon import DaemonStatus, QueueStatus, StartDaemonResult, StopDaemonResult
+
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="daemon CLI targets POSIX environments")
 
 
 def test_daemon_start_requires_flag(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
