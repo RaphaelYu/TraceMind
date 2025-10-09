@@ -10,7 +10,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Dict, Mapping, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 try:
     import yaml
@@ -28,8 +28,18 @@ from tm.runtime.workers import WorkerOptions, TaskWorkerSupervisor, install_sign
 from tm.runtime.dlq import DeadLetterStore
 from tm.runtime.queue import FileWorkQueue, InMemoryWorkQueue
 from tm.runtime.idempotency import IdempotencyStore
-from tm.runtime.queue.manager import TaskQueueManager
+from tm.runtime.queue.manager import EnqueueOutcome, TaskQueueManager
 from tm.runtime.retry import load_retry_policy
+from tm.daemon import (
+    DaemonStatus,
+    QueueStatus,
+    StartDaemonResult,
+    StopDaemonResult,
+    build_paths,
+    collect_status,
+    start_daemon,
+    stop_daemon,
+)
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
@@ -38,6 +48,7 @@ from tm.cli.validate import register_validate_command
 from tm.cli.simulate import register_simulate_command
 
 _TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
+_DAEMON_FLAG_ENV = "TM_ENABLE_DAEMON"
 
 
 def _cli_version() -> str:
@@ -65,6 +76,152 @@ def _init_from_template(template: str, project_name: str, *, force: bool) -> Pat
         project_root.mkdir(parents=True, exist_ok=True)
     shutil.copytree(template_dir, project_root, dirs_exist_ok=True)
     return project_root
+
+
+def _is_feature_enabled(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    normalized = value.strip().lower()
+    return normalized in {"1", "true", "yes", "on"}
+
+
+def _daemon_feature_enabled() -> bool:
+    return _is_feature_enabled(os.getenv(_DAEMON_FLAG_ENV))
+
+
+def _require_daemon_enabled() -> None:
+    if not _daemon_feature_enabled():
+        print(f"Daemon commands require {_DAEMON_FLAG_ENV} to be enabled", file=sys.stderr)
+        sys.exit(1)
+
+
+def _default_daemon_state_dir() -> Path:
+    override = os.getenv("TM_DAEMON_STATE_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / ".trace-mind" / "daemon"
+
+
+def _print_daemon_status(status: DaemonStatus) -> None:
+    state_label = "running" if status.running else ("stale" if status.stale else "stopped")
+    print(f"daemon status : {state_label}")
+    if status.pid is not None:
+        print(f"pid           : {status.pid}")
+    if status.uptime_s is not None:
+        print(f"uptime        : {status.uptime_s:.1f}s")
+    if status.queue is not None:
+        queue = status.queue
+        print(f"queue backend : {queue.backend}")
+        print(f"queue path    : {queue.path}")
+        print(f"backlog       : {queue.backlog}")
+        print(f"pending       : {queue.pending}")
+        print(f"inflight      : {queue.inflight}")
+        if queue.oldest_available_at is not None:
+            lag = max(0.0, time.time() - queue.oldest_available_at)
+            print(f"lag_seconds   : {lag:.3f}")
+    if status.stale and status.pid:
+        print("note          : recorded PID is stale (process no longer running)")
+
+
+def _load_json_arg(value: Optional[str], *, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if value is None:
+        return dict(default or {})
+    raw = value
+    if raw.startswith("@"):
+        raw = Path(raw[1:]).read_text(encoding="utf-8")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON: {exc}") from exc
+    if not isinstance(data, Mapping):
+        raise ValueError("JSON payload must be an object")
+    return dict(data)
+
+
+def _resolve_flow_id(arg: str) -> str:
+    path = Path(arg)
+    if not path.is_file():
+        return arg
+    suffix = path.suffix.lower()
+    if suffix == ".json":
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise ValueError(f"Failed to parse flow spec at {path}: {exc}") from exc
+        if isinstance(data, Mapping):
+            flow = data.get("flow")
+            if isinstance(flow, Mapping):
+                flow_id = flow.get("id")
+                if isinstance(flow_id, str) and flow_id.strip():
+                    return flow_id.strip()
+        return path.stem
+    if yaml is None:
+        raise RuntimeError(
+            "PyYAML is required to load flow specifications; install the 'yaml' extra, e.g. `pip install trace-mind[yaml]`."
+        )
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ValueError(f"Failed to parse flow spec at {path}: {exc}") from exc
+    if isinstance(data, Mapping):
+        flow = data.get("flow")
+        if isinstance(flow, Mapping):
+            flow_id = flow.get("id")
+            if isinstance(flow_id, str) and flow_id.strip():
+                return flow_id.strip()
+    return path.stem
+
+
+def _enqueue_task(
+    *,
+    flow_id: str,
+    payload: Mapping[str, Any],
+    headers: Optional[Mapping[str, Any]],
+    trace: Optional[Mapping[str, Any]],
+    queue_backend: str,
+    queue_dir: str,
+    idempotency_dir: str,
+    idempotency_key: Optional[str] = None,
+) -> EnqueueOutcome:
+    backend = queue_backend or "file"
+    headers_payload = dict(headers or {})
+    if idempotency_key:
+        headers_payload.setdefault("idempotency_key", idempotency_key)
+    if backend == "file":
+        queue_path = Path(queue_dir).resolve()
+        queue_path.mkdir(parents=True, exist_ok=True)
+        queue = FileWorkQueue(str(queue_path))
+    elif backend == "memory":
+        queue = InMemoryWorkQueue()
+    else:
+        raise ValueError(f"Unsupported queue backend '{backend}'")
+    idem_path = Path(idempotency_dir).resolve()
+    idem_path.mkdir(parents=True, exist_ok=True)
+    idem_store = IdempotencyStore(dir_path=str(idem_path))
+    manager = TaskQueueManager(queue, idem_store)
+    try:
+        outcome = manager.enqueue(
+            flow_id=flow_id,
+            input=payload,
+            headers=headers_payload or None,
+            trace=dict(trace or {}),
+        )
+    finally:
+        if backend == "file":
+            try:
+                queue.flush()
+            finally:
+                queue.close()
+    return outcome
+
+
+def _report_enqueue_outcome(flow_id: str, outcome: EnqueueOutcome) -> None:
+    if outcome.queued and outcome.envelope:
+        print(f"enqueued task {outcome.envelope.task_id} for flow '{flow_id}'")
+    elif outcome.cached_result is not None:
+        print("duplicate request (served from idempotency cache)")
+    else:
+        print("task already pending; not enqueued")
 
 
 def _cmd_pipeline_analyze(args):
@@ -306,46 +463,75 @@ def _build_parser() -> argparse.ArgumentParser:
 
     run_parser = sub.add_parser("run", help="execute a flow recipe")
     run_parser.add_argument("recipe", help="path to recipe (JSON or YAML)")
-    run_parser.add_argument("-i", "--input", help="JSON string or @file with initial state")
+    run_parser.add_argument("-i", "--input", default=None, help="JSON string or @file with initial state")
+    run_parser.add_argument(
+        "--detached",
+        action="store_true",
+        help=f"enqueue the run for background workers (requires {_DAEMON_FLAG_ENV}=1)",
+    )
+    run_parser.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend for detached runs")
+    run_parser.add_argument(
+        "--queue-dir",
+        default="data/queue",
+        help="queue directory for detached runs when using the file backend",
+    )
+    run_parser.add_argument(
+        "--idempotency-dir",
+        default="data/idempotency",
+        help="idempotency cache directory for detached runs",
+    )
+    run_parser.add_argument(
+        "--idempotency-key",
+        help="set idempotency key header for detached runs",
+    )
+    run_parser.add_argument(
+        "--headers",
+        help="additional headers JSON or @file (detached runs only)",
+    )
+    run_parser.add_argument(
+        "--trace",
+        help="trace metadata JSON or @file (detached runs only)",
+    )
 
     def _cmd_run(args):
-        payload: Dict[str, Any]
-        if args.input:
-            raw = args.input
-            if raw.startswith("@"):
-                data = Path(raw[1:]).read_text(encoding="utf-8")
-            else:
-                data = raw
+        try:
+            payload = _load_json_arg(args.input, default={})
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+
+        if args.detached:
+            if not _daemon_feature_enabled():
+                print(f"Detached runs require {_DAEMON_FLAG_ENV} to be enabled", file=sys.stderr)
+                sys.exit(1)
             try:
-                payload_obj = json.loads(data)
-            except json.JSONDecodeError as exc:  # pragma: no cover - CLI error path
-                print(f"Invalid input JSON: {exc}", file=sys.stderr)
+                headers = _load_json_arg(args.headers, default={}) if args.headers else {}
+                trace = _load_json_arg(args.trace, default={}) if args.trace else {}
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
                 sys.exit(1)
-            if not isinstance(payload_obj, dict):
-                print("Input JSON must decode to an object", file=sys.stderr)
+            try:
+                flow_id = _resolve_flow_id(args.recipe)
+            except (RuntimeError, ValueError) as exc:
+                print(str(exc), file=sys.stderr)
                 sys.exit(1)
-            payload = payload_obj
-        else:
-            payload = {}
+            outcome = _enqueue_task(
+                flow_id=flow_id,
+                payload=payload,
+                headers=headers,
+                trace=trace,
+                queue_backend=args.queue,
+                queue_dir=args.queue_dir,
+                idempotency_dir=args.idempotency_dir,
+                idempotency_key=args.idempotency_key,
+            )
+            _report_enqueue_outcome(flow_id, outcome)
+            return 0
 
         result = run_recipe(Path(args.recipe), payload)
         print(json.dumps(result, ensure_ascii=False, indent=2))
 
     run_parser.set_defaults(func=_cmd_run)
-
-    def _load_json_arg(value: str, *, default: Dict[str, Any] | None = None) -> Dict[str, Any]:
-        if value is None:
-            return default or {}
-        raw = value
-        if raw.startswith("@"):
-            raw = Path(raw[1:]).read_text(encoding="utf-8")
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON: {exc}") from exc
-        if not isinstance(data, Mapping):
-            raise ValueError("JSON payload must be an object")
-        return dict(data)
 
     enqueue_parser = sub.add_parser(
         "enqueue",
@@ -367,26 +553,6 @@ def _build_parser() -> argparse.ArgumentParser:
     enqueue_parser.add_argument("--headers", help="additional headers JSON or @file")
     enqueue_parser.add_argument("--trace", help="trace metadata JSON or @file")
 
-    def _resolve_flow_id(arg: str) -> str:
-        path = Path(arg)
-        if path.is_file():
-            if yaml is None:
-                raise RuntimeError(
-                    "PyYAML is required to load flow specifications; install the 'yaml' extra, e.g. `pip install trace-mind[yaml]`."
-                )
-            try:
-                data = yaml.safe_load(path.read_text(encoding="utf-8"))
-            except Exception as exc:
-                raise ValueError(f"Failed to parse flow spec at {path}: {exc}") from exc
-            if isinstance(data, Mapping):
-                flow = data.get("flow")
-                if isinstance(flow, Mapping):
-                    flow_id = flow.get("id")
-                    if isinstance(flow_id, str) and flow_id.strip():
-                        return flow_id.strip()
-            return path.stem
-        return arg
-
     def _cmd_enqueue(args):
         try:
             payload = _load_json_arg(args.input, default={})
@@ -396,12 +562,9 @@ def _build_parser() -> argparse.ArgumentParser:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
 
-        if args.idempotency_key:
-            headers.setdefault("idempotency_key", args.idempotency_key)
-
         try:
             flow_id = _resolve_flow_id(args.flow)
-        except ValueError as exc:
+        except (RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             sys.exit(1)
 
@@ -409,37 +572,209 @@ def _build_parser() -> argparse.ArgumentParser:
             print("Unable to determine flow id", file=sys.stderr)
             sys.exit(1)
 
-        queue_backend = args.queue
-        if queue_backend == "file":
-            queue_dir = Path(args.queue_dir).resolve()
-            queue_dir.mkdir(parents=True, exist_ok=True)
-            queue = FileWorkQueue(str(queue_dir))
-        else:
-            queue = InMemoryWorkQueue()
-
-        idem_dir = Path(args.idempotency_dir).resolve()
-        idem_dir.mkdir(parents=True, exist_ok=True)
-        idem_store = IdempotencyStore(dir_path=str(idem_dir))
-
-        manager = TaskQueueManager(queue, idem_store)
-        outcome = manager.enqueue(
+        outcome = _enqueue_task(
             flow_id=flow_id,
-            input=payload,
-            headers=headers or None,
-            trace=trace or None,
+            payload=payload,
+            headers=headers,
+            trace=trace,
+            queue_backend=args.queue,
+            queue_dir=args.queue_dir,
+            idempotency_dir=args.idempotency_dir,
+            idempotency_key=args.idempotency_key,
         )
-        if queue_backend == "file":
-            queue.flush()
-            queue.close()
-
-        if outcome.queued and outcome.envelope:
-            print(f"enqueued task {outcome.envelope.task_id} for flow '{flow_id}'")
-        elif outcome.cached_result is not None:
-            print("duplicate request (served from idempotency cache)")
-        else:
-            print("task already pending; not enqueued")
+        _report_enqueue_outcome(flow_id, outcome)
 
     enqueue_parser.set_defaults(func=_cmd_enqueue)
+
+    daemon_parser = sub.add_parser(
+        "daemon",
+        help="manage the background daemon",
+        description="Start, inspect, and stop the TraceMind background daemon.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:\n  tm daemon start\n  tm daemon ps --json\n  tm daemon stop""",
+    )
+    daemon_sub = daemon_parser.add_subparsers(dest="dcmd")
+    daemon_sub.required = True
+
+    daemon_start = daemon_sub.add_parser(
+        "start",
+        help="launch the daemon as a background process",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    daemon_start.add_argument("--state-dir", default=str(_default_daemon_state_dir()), help="daemon metadata directory")
+    daemon_start.add_argument("--queue-dir", default="data/queue", help="work queue directory (file backend)")
+    daemon_start.add_argument("--idempotency-dir", default="data/idempotency", help="idempotency cache directory")
+    daemon_start.add_argument("--dlq-dir", default="data/dlq", help="dead letter queue directory")
+    daemon_start.add_argument("--runtime", default="tm.app.wiring_flows:_runtime", help="worker runtime factory")
+    daemon_start.add_argument("--workers", type=int, default=1, help="number of worker processes")
+    daemon_start.add_argument("--python", default=sys.executable, help="Python interpreter to launch daemon with")
+    daemon_start.add_argument(
+        "--log-file",
+        help="redirect daemon stdout/stderr to this file (default: <state-dir>/daemon.log)",
+    )
+    daemon_start.add_argument(
+        "--inherit-logs",
+        action="store_true",
+        help="inherit stdout/stderr instead of redirecting to a log file",
+    )
+
+    def _cmd_daemon_start(args):
+        _require_daemon_enabled()
+        if args.workers <= 0:
+            print("workers must be positive", file=sys.stderr)
+            sys.exit(1)
+
+        state_dir = Path(args.state_dir).expanduser()
+        paths = build_paths(str(state_dir))
+
+        queue_dir = Path(args.queue_dir).expanduser().resolve()
+        queue_dir.mkdir(parents=True, exist_ok=True)
+        idem_dir = Path(args.idempotency_dir).expanduser().resolve()
+        idem_dir.mkdir(parents=True, exist_ok=True)
+        dlq_dir = Path(args.dlq_dir).expanduser().resolve()
+        dlq_dir.mkdir(parents=True, exist_ok=True)
+
+        python_exec = Path(args.python).expanduser()
+        command = [
+            str(python_exec),
+            "-m",
+            "tm.cli",
+            "workers",
+            "start",
+            "-n",
+            str(args.workers),
+            "--queue",
+            "file",
+            "--queue-dir",
+            str(queue_dir),
+            "--idempotency-dir",
+            str(idem_dir),
+            "--dlq-dir",
+            str(dlq_dir),
+            "--runtime",
+            args.runtime,
+            "--pid-file",
+            str(Path(paths.root) / "workers.pid"),
+        ]
+
+        metadata = {
+            "workers": args.workers,
+            "runtime": args.runtime,
+            "idempotency_dir": str(idem_dir),
+            "dlq_dir": str(dlq_dir),
+        }
+
+        env = os.environ.copy()
+        env.setdefault(_DAEMON_FLAG_ENV, "1")
+
+        log_path: Optional[Path] = None
+        log_handle = None
+        if not args.inherit_logs:
+            log_path = Path(args.log_file).expanduser() if args.log_file else Path(paths.root) / "daemon.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_handle = open(log_path, "ab")
+            metadata["log_file"] = str(log_path)
+
+        try:
+            stdout = log_handle if log_handle is not None else None
+            stderr = log_handle if log_handle is not None else None
+            result = start_daemon(
+                paths,
+                command=command,
+                queue_dir=str(queue_dir),
+                metadata=metadata,
+                env=env,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        finally:
+            if log_handle is not None:
+                log_handle.close()
+
+        if result.started:
+            note = ""
+            if not args.inherit_logs:
+                note = f" (logs: {log_path})"
+            print(f"started daemon pid {result.pid} (queue: {queue_dir}){note}")
+            return 0
+
+        reason = result.reason or "unknown"
+        if reason == "already-running" and result.pid:
+            print(f"daemon already running (pid {result.pid})", file=sys.stderr)
+        else:
+            print(f"failed to start daemon: {reason}", file=sys.stderr)
+        sys.exit(1)
+
+    daemon_start.set_defaults(func=_cmd_daemon_start)
+
+    daemon_ps = daemon_sub.add_parser(
+        "ps",
+        help="show daemon status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    daemon_ps.add_argument("--state-dir", default=str(_default_daemon_state_dir()), help="daemon metadata directory")
+    daemon_ps.add_argument("--queue-dir", help="override queue directory used for status collection")
+    daemon_ps.add_argument("--json", action="store_true", help="output JSON")
+
+    def _cmd_daemon_ps(args):
+        _require_daemon_enabled()
+        state_dir = Path(args.state_dir).expanduser()
+        paths = build_paths(str(state_dir))
+        queue_override = None
+        if args.queue_dir:
+            queue_override = str(Path(args.queue_dir).expanduser().resolve())
+        status = collect_status(paths, queue_dir=queue_override)
+        if args.json:
+            print(json.dumps(status.to_dict(), ensure_ascii=False, indent=2))
+        else:
+            _print_daemon_status(status)
+        return 0
+
+    daemon_ps.set_defaults(func=_cmd_daemon_ps)
+
+    daemon_stop = daemon_sub.add_parser(
+        "stop",
+        help="shut down the daemon",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    daemon_stop.add_argument("--state-dir", default=str(_default_daemon_state_dir()), help="daemon metadata directory")
+    daemon_stop.add_argument("--timeout", type=float, default=10.0, help="grace period before forcing termination (s)")
+    daemon_stop.add_argument(
+        "--poll-interval",
+        type=float,
+        default=0.25,
+        help="polling interval when waiting for graceful shutdown (s)",
+    )
+    daemon_stop.add_argument(
+        "--no-force",
+        action="store_true",
+        help="do not escalate to SIGKILL/TerminateProcess if graceful stop times out",
+    )
+
+    def _cmd_daemon_stop(args):
+        _require_daemon_enabled()
+        state_dir = Path(args.state_dir).expanduser()
+        paths = build_paths(str(state_dir))
+        result = stop_daemon(
+            paths,
+            timeout=max(0.0, args.timeout),
+            poll_interval=max(0.05, args.poll_interval),
+            force=not args.no_force,
+        )
+        if result.stopped:
+            verb = "forced" if result.forced else "graceful"
+            pid_display = result.pid if result.pid is not None else "unknown"
+            print(f"stopped daemon pid {pid_display} ({verb})")
+            return 0
+
+        reason = result.reason or "unknown"
+        if reason in {"not-recorded", "not-running"}:
+            print("daemon not running")
+            return 0
+        print(f"failed to stop daemon: {reason}", file=sys.stderr)
+        sys.exit(1)
+
+    daemon_stop.set_defaults(func=_cmd_daemon_stop)
 
     workers_parser = sub.add_parser(
         "workers",

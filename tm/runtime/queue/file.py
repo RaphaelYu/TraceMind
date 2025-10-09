@@ -6,8 +6,10 @@ import re
 import heapq
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, MutableMapping, Optional, Sequence
+import logging
 
 try:  # pragma: no cover - platform specific
     import fcntl  # type: ignore[attr-defined]
@@ -20,6 +22,16 @@ except ModuleNotFoundError:  # pragma: no cover
     msvcrt = None  # type: ignore[attr-defined]
 
 from .base import LeasedTask, WorkQueue
+
+LOGGER = logging.getLogger("tm.runtime.queue.file")
+_LOCK_SUFFIX = ".lock"
+
+
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 _SEGMENT_RE = re.compile(r"segment-(\d{6})\.log$")
 
@@ -78,6 +90,39 @@ def _unlock_file(fh) -> None:
         msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
 
 
+@contextmanager
+def _locked_path(path: str):
+    """Context manager that locks a sidecar file for cross-platform coordination."""
+
+    fh = open(path, "a+b")
+    locked = False
+    try:
+        if fcntl is not None or msvcrt is not None:
+            _lock_file(fh)
+            locked = True
+        yield fh
+    finally:
+        if locked:
+            _unlock_file(fh)
+        fh.close()
+
+
+def _fsync_parent(path: str) -> None:
+    """Best-effort fsync of the directory containing *path*."""
+
+    parent = os.path.dirname(path) or "."
+    try:
+        fd = os.open(parent, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 class FileWorkQueue(WorkQueue):
     """File-backed segmented queue with leases and ack/nack support."""
 
@@ -89,9 +134,10 @@ class FileWorkQueue(WorkQueue):
         fsync_on_put: bool = False,
     ) -> None:
         self._dir = dir_path
+        self._v2_enabled = _env_flag("TM_FILE_QUEUE_V2")
         self._io_lock = threading.Lock()
         self._segment_max_bytes = max(segment_max_bytes, 1024)
-        self._fsync_on_put = fsync_on_put
+        self._fsync_on_put = fsync_on_put or self._v2_enabled
         os.makedirs(self._dir, exist_ok=True)
         self._lock = threading.Lock()
         self._segments: list[_FileSegment] = []
@@ -205,6 +251,7 @@ class FileWorkQueue(WorkQueue):
             segment.ack(offset)
             entry.token = None
             entry.lease_deadline = 0.0
+            entry.acked = True
             self._entries.pop(offset, None)
             self._persist_segment_state(segment)
             self._maybe_compact_head()
@@ -219,6 +266,7 @@ class FileWorkQueue(WorkQueue):
             entry.token = None
             entry.lease_deadline = 0.0
             if requeue:
+                entry.acked = False
                 available_at = entry.available_at
                 now = time.monotonic()
                 if available_at < now:
@@ -226,6 +274,7 @@ class FileWorkQueue(WorkQueue):
                     entry.available_at = available_at
                 self._push_ready(offset, available_at)
             else:
+                entry.acked = True
                 segment = self._segments_by_seq.get(entry.segment_seq)
                 if segment is None:
                     return
@@ -253,6 +302,27 @@ class FileWorkQueue(WorkQueue):
         if not candidates:
             return None
         return min(candidates)
+
+    def describe(self) -> Mapping[str, Any]:
+        """Return a lightweight snapshot of queue occupancy."""
+
+        with self._lock:
+            total = len(self._entries)
+            inflight = sum(1 for entry in self._entries.values() if entry.token is not None)
+            pending = total - inflight
+            oldest: Optional[float] = None
+            if pending:
+                for entry in self._entries.values():
+                    if entry.token is not None:
+                        continue
+                    if oldest is None or entry.available_at < oldest:
+                        oldest = entry.available_at
+        return {
+            "backlog": total,
+            "pending": pending,
+            "inflight": inflight,
+            "oldest_available_at": oldest,
+        }
 
     def flush(self) -> None:
         return
@@ -286,21 +356,56 @@ class FileWorkQueue(WorkQueue):
             self._open_segment_file(last, append=True)
         return max_seq, max_offset
 
-    def _build_segment_from_files(self, seq: int, path: str, index_path: str) -> _FileSegment:
+    def _load_index_metadata(self, index_path: str) -> tuple[set[int], bool]:
         acked: set[int] = set()
-        if os.path.exists(index_path):
+        needs_rewrite = False
+        if not os.path.exists(index_path):
+            return acked, self._v2_enabled
+        try:
+            with open(index_path, "r", encoding="utf-8") as fh:
+                raw = json.load(fh)
+        except Exception:
+            if self._v2_enabled:
+                LOGGER.warning("queue index %s unreadable; rebuilding (acked entries may re-run)", index_path)
+            return set(), self._v2_enabled
+        ack_list = raw.get("acked", [])
+        if not isinstance(ack_list, list):
+            return set(), True
+        for value in ack_list:
             try:
-                with open(index_path, "r", encoding="utf-8") as fh:
-                    raw = json.load(fh)
-                ack_list = raw.get("acked", [])
-                acked = {int(v) for v in ack_list}
-            except Exception:
-                acked = set()
+                offset = int(value)
+            except (TypeError, ValueError):
+                needs_rewrite = True
+                if self._v2_enabled:
+                    LOGGER.warning(
+                        "queue index %s contains invalid ack entry %r; dropping",
+                        index_path,
+                        value,
+                    )
+                continue
+            if offset < 0:
+                needs_rewrite = True
+                if self._v2_enabled:
+                    LOGGER.warning(
+                        "queue index %s contains negative ack offset %r; dropping",
+                        index_path,
+                        value,
+                    )
+                continue
+            acked.add(offset)
+        return acked, needs_rewrite
+
+    def _build_segment_from_files(self, seq: int, path: str, index_path: str) -> _FileSegment:
+        index_missing = not os.path.exists(index_path)
+        acked, needs_rewrite = self._load_index_metadata(index_path)
+        if self._v2_enabled and index_missing:
+            LOGGER.info("queue index %s missing; initializing", index_path)
         start_offset = self._next_offset
         end_offset = self._next_offset - 1
         record_count = 0
         pending = 0
         size_bytes = 0
+        observed_offsets: set[int] = set()
         try:
             with open(path, "rb") as fh:
                 for line in fh:
@@ -313,6 +418,7 @@ class FileWorkQueue(WorkQueue):
                     except json.JSONDecodeError:
                         continue
                     offset = int(data["offset"])
+                    observed_offsets.add(offset)
                     if record_count == 0:
                         start_offset = offset
                     end_offset = offset
@@ -334,7 +440,18 @@ class FileWorkQueue(WorkQueue):
                         self._push_ready(offset, available_at)
         except FileNotFoundError:
             pass
-        return _FileSegment(
+        if acked:
+            missing_offsets = acked - observed_offsets
+            if missing_offsets:
+                if self._v2_enabled:
+                    LOGGER.warning(
+                        "queue index %s referenced missing offsets %s; repairing",
+                        index_path,
+                        sorted(missing_offsets)[:3],
+                    )
+                acked -= missing_offsets
+                needs_rewrite = True
+        segment = _FileSegment(
             seq=seq,
             path=path,
             index_path=index_path,
@@ -345,6 +462,9 @@ class FileWorkQueue(WorkQueue):
             pending=pending,
             acked=acked,
         )
+        if self._v2_enabled and needs_rewrite:
+            self._persist_segment_state(segment)
+        return segment
 
     def _ensure_active_segment(self) -> None:
         if self._current_segment is None:
@@ -488,20 +608,25 @@ class FileWorkQueue(WorkQueue):
             "end_offset": segment.end_offset,
             "record_count": segment.record_count,
         }
-        lock_fp = None
+        lock_path = segment.index_path + _LOCK_SUFFIX
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
         try:
-            if fcntl is not None:
-                lock_fp = open(segment.index_path, "a+b")
-                fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX)
-            with open(tmp_path, "w", encoding="utf-8") as fh:
-                json.dump(data, fh, separators=(",", ":"))
-                fh.flush()
-                os.fsync(fh.fileno())
-            os.replace(tmp_path, segment.index_path)
+            with _locked_path(lock_path):
+                with open(tmp_path, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, separators=(",", ":"))
+                    fh.flush()
+                    try:
+                        os.fsync(fh.fileno())
+                    except OSError:
+                        pass
+                os.replace(tmp_path, segment.index_path)
+                if self._v2_enabled:
+                    _fsync_parent(segment.index_path)
         finally:
-            if lock_fp is not None:
-                fcntl.flock(lock_fp.fileno(), fcntl.LOCK_UN)
-                lock_fp.close()
+            try:
+                os.remove(tmp_path)
+            except FileNotFoundError:
+                pass
 
     def _maybe_compact_head(self) -> None:
         with self._io_lock:
@@ -517,6 +642,10 @@ class FileWorkQueue(WorkQueue):
                     pass
                 try:
                     os.remove(head.index_path)
+                except FileNotFoundError:
+                    pass
+                try:
+                    os.remove(head.index_path + _LOCK_SUFFIX)
                 except FileNotFoundError:
                     pass
                 self._segments.pop(0)

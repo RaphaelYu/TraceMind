@@ -155,6 +155,34 @@ Reuse the copy/paste examples in the validation guide to keep agents continuousl
 
 Need to configure persistence for production?  See [`docs/storage.md`](docs/storage.md) for KStore URLs and fallback behaviour.
 
+### Background daemon (opt-in)
+
+TraceMind can run flows in the background via a daemon + queue worker loop. Enable it explicitly:
+
+```bash
+export TM_ENABLE_DAEMON=1
+export TM_FILE_QUEUE_V2=1  # recommended for durable queue semantics
+```
+
+High-level workflow:
+
+```bash
+# Start the daemon (spawns workers under the hood)
+tm daemon start --queue-dir data/queue --idempotency-dir data/idempotency
+
+# Enqueue work without blocking
+tm run flows/hello.yaml --detached -i '{"name":"async"}'
+
+# Check status (human readable or JSON)
+tm daemon ps
+tm daemon ps --json | jq .
+
+# Stop the daemon gracefully (forces after timeout unless --no-force)
+tm daemon stop
+```
+
+See [`docs/daemon.md`](docs/daemon.md) for configuration details, troubleshooting tips, and a deeper explanation of queue/idempotency directory layout. CI runs a smoke script (`scripts/daemon_smoke.sh`) to ensure the loop stays healthy.
+
 ### Run in container
 
 ```bash
