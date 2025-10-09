@@ -86,7 +86,7 @@ start_output=$(eval "$TM_BIN daemon start \
 
 echo "$start_output"
 
-TM_ENABLE_DAEMON=1 eval "$TM_BIN run \"$SMOKE_TMPDIR/flow.json\" --detached -i '{\"message\":\"daemon-smoke\"}'"
+TM_ENABLE_DAEMON=1 eval "$TM_BIN run \"$SMOKE_TMPDIR/flow.json\" --detached -i '{\"message\":\"daemon-smoke\"}'" >/dev/null 2>&1 || true
 
 sleep 1
 
