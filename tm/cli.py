@@ -30,16 +30,7 @@ from tm.runtime.queue import FileWorkQueue, InMemoryWorkQueue
 from tm.runtime.idempotency import IdempotencyStore
 from tm.runtime.queue.manager import EnqueueOutcome, TaskQueueManager
 from tm.runtime.retry import load_retry_policy
-from tm.daemon import (
-    DaemonStatus,
-    QueueStatus,
-    StartDaemonResult,
-    StopDaemonResult,
-    build_paths,
-    collect_status,
-    start_daemon,
-    stop_daemon,
-)
+from tm.daemon import DaemonStatus, build_paths, collect_status, start_daemon, stop_daemon
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
