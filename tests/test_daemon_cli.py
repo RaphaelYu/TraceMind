@@ -19,7 +19,9 @@ def test_daemon_start_requires_flag(monkeypatch: pytest.MonkeyPatch, capsys: pyt
     assert "TM_ENABLE_DAEMON" in captured.err
 
 
-def test_daemon_start_invokes_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_daemon_start_invokes_service(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("TM_ENABLE_DAEMON", "1")
 
     queue_dir = tmp_path / "queue"
@@ -118,7 +120,9 @@ def test_daemon_start_reports_existing(
     assert "already running" in err
 
 
-def test_daemon_ps_json_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_daemon_ps_json_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("TM_ENABLE_DAEMON", "1")
 
     def fake_collect(paths, queue_dir=None, now=None):

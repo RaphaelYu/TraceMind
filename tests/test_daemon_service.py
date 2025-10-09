@@ -46,7 +46,9 @@ def test_collect_status_reports_queue_counts(tmp_path: Path) -> None:
     assert status.uptime_s is not None and status.uptime_s >= 0
 
 
-@pytest.mark.skipif(sys.platform == "win32" and sys.version_info < (3, 11), reason="SIGTERM reliability on older Windows")
+@pytest.mark.skipif(
+    sys.platform == "win32" and sys.version_info < (3, 11), reason="SIGTERM reliability on older Windows"
+)
 def test_stop_daemon_terminates_process(tmp_path: Path) -> None:
     queue_dir = tmp_path / "queue"
     queue_dir.mkdir()

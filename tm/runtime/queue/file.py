@@ -33,6 +33,7 @@ def _env_flag(name: str, *, default: bool = False) -> bool:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
+
 _SEGMENT_RE = re.compile(r"segment-(\d{6})\.log$")
 
 

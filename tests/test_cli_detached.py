@@ -40,7 +40,9 @@ def test_enqueue_task_writes_file_queue(tmp_path: Path) -> None:
         queue.close()
 
 
-def test_run_detached_enqueues_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_run_detached_enqueues_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     monkeypatch.setenv("TM_ENABLE_DAEMON", "1")
     queue_dir = tmp_path / "queue"
     idempotency_dir = tmp_path / "idem"

@@ -460,7 +460,9 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=f"enqueue the run for background workers (requires {_DAEMON_FLAG_ENV}=1)",
     )
-    run_parser.add_argument("--queue", choices=["file", "memory"], default="file", help="queue backend for detached runs")
+    run_parser.add_argument(
+        "--queue", choices=["file", "memory"], default="file", help="queue backend for detached runs"
+    )
     run_parser.add_argument(
         "--queue-dir",
         default="data/queue",
