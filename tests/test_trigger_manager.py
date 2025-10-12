@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import textwrap
+import json
 from contextlib import suppress
 import socket
 
@@ -120,19 +121,21 @@ async def test_trigger_runtime_webhook(tmp_path) -> None:
 async def test_trigger_runtime_filesystem(tmp_path) -> None:
     watch_dir = tmp_path / "watch"
     watch_dir.mkdir()
-    cfg_text = textwrap.dedent(
-        f"""
-        triggers:
-          - id: fs
-            kind: filesystem
-            path: "{watch_dir}"
-            pattern: "*.json"
-            recursive: false
-            interval_seconds: 0.5
-            flow_id: flows/fs.yaml
-            input:
-              file: "{{ path }}"
-        """
+    cfg_text = json.dumps(
+        {
+            "triggers": [
+                {
+                    "id": "fs",
+                    "kind": "filesystem",
+                    "path": str(watch_dir),
+                    "pattern": "*.json",
+                    "recursive": False,
+                    "interval_seconds": 0.5,
+                    "flow_id": "flows/fs.yaml",
+                    "input": {"file": "{{ path }}"},
+                }
+            ]
+        }
     )
     config = load_trigger_config_text(cfg_text)
     queue_dir = tmp_path / "queue2"
