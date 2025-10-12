@@ -1,0 +1,32 @@
+# TraceMind trigger configuration
+version: 1
+triggers:
+  - id: hourly-report
+    kind: cron
+    cron: "0 * * * *"
+    timezone: local
+    flow_id: flows/hourly.yaml
+    input:
+      mode: summary
+
+  - id: orders-webhook
+    kind: webhook
+    route: "/hooks/orders"
+    method: POST
+    bind_host: 127.0.0.1
+    bind_port: 8081
+    allow_cleartext: true
+    secret: change-me
+    flow_id: flows/order-intake.yaml
+    input:
+      body: "{{ body }}"
+
+  - id: ingest-drop-folder
+    kind: filesystem
+    path: ./incoming
+    pattern: "*.json"
+    recursive: false
+    interval_seconds: 5
+    flow_id: flows/file-import.yaml
+    input:
+      file_path: "{{ path }}"

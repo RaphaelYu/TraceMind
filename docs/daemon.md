@@ -64,6 +64,14 @@ tm daemon ps --json | jq '.queue'
 
 # 5. Stop when finished (default timeout=10s, escalate to SIGKILL afterward)
 tm daemon stop
+
+# Optional: run trigger adapters in the same process
+tm daemon start \
+  --queue-dir data/queue \
+  --idempotency-dir data/idempotency \
+  --dlq-dir data/dlq \
+  --enable-triggers \
+  --triggers-config triggers.yaml
 ```
 
 If `tm daemon start` is invoked twice, the second call reports the existing PID. `tm daemon stop` exits cleanly if the daemon is not running.
@@ -79,6 +87,12 @@ If `tm daemon start` is invoked twice, the second call reports the existing PID.
 3. Run `tm run --detached` against a sample recipe (JSON stub).
 4. Call `tm daemon ps --json` and check for pending/inflight counts.
 5. Stop the daemon gracefully.
+
+To include triggers in the smoke run:
+
+```bash
+scripts/daemon_smoke.sh --triggers triggers.yaml
+```
 
 Run it locally with `bash scripts/daemon_smoke.sh`. CI executes the same script on pull requests to guard against regressions. If the script fails it prints the daemon log path for debugging.
 
@@ -110,4 +124,3 @@ Run it locally with `bash scripts/daemon_smoke.sh`. CI executes the same script 
 - The daemon + detached runs require POSIX or Windows environments where subprocesses and file locks are available. It is not supported on read-only filesystems.
 - Feature flags keep the functionality off by default; existing scripts and flows keep current semantics.
 - `TM_FILE_QUEUE_V2` improves durability for daemon workloads; you can test V2 in isolation before enabling it in production.
-

@@ -43,6 +43,11 @@ def test_daemon_start_invokes_service(
         env,
         stdout,
         stderr,
+        triggers_config=None,
+        triggers_queue_dir=None,
+        triggers_idem_dir=None,
+        triggers_dlq_dir=None,
+        **kwargs,
     ):
         captured["command"] = list(command)
         captured["queue_dir"] = queue_dir
@@ -76,7 +81,7 @@ def test_daemon_start_invokes_service(
     assert "queue:" in out
     assert "workers" in captured["metadata"]
     command_list = captured["command"]
-    assert "workers" in command_list and "start" in command_list
+    assert "tm.daemon.run" in command_list
     assert Path(queue_dir).exists()
     assert Path(idem_dir).exists()
     assert Path(dlq_dir).exists()
@@ -96,6 +101,11 @@ def test_daemon_start_reports_existing(
         env,
         stdout,
         stderr,
+        triggers_config=None,
+        triggers_queue_dir=None,
+        triggers_idem_dir=None,
+        triggers_dlq_dir=None,
+        **kwargs,
     ):
         return StartDaemonResult(pid=4321, started=False, reason="already-running")
 

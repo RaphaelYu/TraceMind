@@ -179,9 +179,20 @@ tm daemon ps --json | jq .
 
 # Stop the daemon gracefully (forces after timeout unless --no-force)
 tm daemon stop
+
+# Start the daemon with triggers enabled
+tm daemon start --enable-triggers --triggers-config triggers.yaml
 ```
 
-See [`docs/daemon.md`](docs/daemon.md) for configuration details, troubleshooting tips, and a deeper explanation of queue/idempotency directory layout. CI runs a smoke script (`scripts/daemon_smoke.sh`) to ensure the loop stays healthy.
+Triggers can also run without the daemon:
+
+```bash
+tm triggers init             # scaffold config
+tm triggers validate         # lint configuration
+tm triggers run --config triggers.yaml
+```
+
+See [`docs/daemon.md`](docs/daemon.md) for configuration details, troubleshooting tips, and a deeper explanation of queue/idempotency directory layout. CI runs a smoke script (`scripts/daemon_smoke.sh`) to ensure the loop stays healthy. Trigger design, adapter reference, and templates live in [`docs/triggers.md`](docs/triggers.md).
 
 ### Run in container
 

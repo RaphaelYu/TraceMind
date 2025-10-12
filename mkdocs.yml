@@ -10,6 +10,7 @@ nav:
   - How-to Guides:
     - LLM Call Step: docs/howto/llm_call.md
     - Policy Adapter: docs/howto/policy_adapter.md
+    - Triggers: docs/triggers.md
     - Daemon Mode: docs/daemon.md
   - Architecture:
     - Runtime Overview: docs/architecture/runtime_overview.md

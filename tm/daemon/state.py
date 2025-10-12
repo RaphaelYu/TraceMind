@@ -111,6 +111,7 @@ class DaemonStatus:
     uptime_s: Optional[float]
     queue: Optional[QueueStatus]
     stale: bool
+    metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
@@ -122,6 +123,8 @@ class DaemonStatus:
         }
         if self.queue is not None:
             payload["queue"] = self.queue.to_dict()
+        if self.metadata:
+            payload["metadata"] = self.metadata
         return payload
 
 
@@ -190,6 +193,7 @@ def collect_status(
     created_at = state.created_at if state else None
     uptime = state.uptime(now=now) if state and running else None
     stale = bool(pid and not running)
+    metadata = state.metadata if state else None
     return DaemonStatus(
         pid=pid,
         running=running,
@@ -197,6 +201,7 @@ def collect_status(
         uptime_s=uptime,
         queue=queue_snapshot,
         stale=stale,
+        metadata=metadata,
     )
 
 

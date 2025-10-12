@@ -18,6 +18,23 @@ cleanup() {
 }
 trap cleanup EXIT
 
+TRIGGERS_CONFIG=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --triggers=*)
+      TRIGGERS_CONFIG="${1#*=}"
+      shift
+      ;;
+    --triggers)
+      TRIGGERS_CONFIG="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
 SMOKE_TMPDIR=$(mktemp -d -t tm-daemon-smoke-XXXX)
 QUEUE_DIR="$SMOKE_TMPDIR/queue"
 IDEM_DIR="$SMOKE_TMPDIR/idempotency"
@@ -76,12 +93,18 @@ cat >"$SMOKE_TMPDIR/flow.json" <<'FLOW'
 }
 FLOW
 
+TRIGGER_ARGS=""
+if [[ -n "$TRIGGERS_CONFIG" ]]; then
+  TRIGGER_ARGS="--enable-triggers --triggers-config \"$TRIGGERS_CONFIG\""
+fi
+
 start_output=$(eval "$TM_BIN daemon start \
   --state-dir \"$DAEMON_STATE_DIR\" \
   --queue-dir \"$QUEUE_DIR\" \
   --idempotency-dir \"$IDEM_DIR\" \
   --dlq-dir \"$DLQ_DIR\" \
   --workers 1 \
+  $TRIGGER_ARGS \
   --log-file \"$LOG_FILE\"")
 
 echo "$start_output"

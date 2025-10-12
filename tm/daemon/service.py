@@ -71,6 +71,10 @@ def start_daemon(
     cwd: Optional[str] = None,
     stdout=None,
     stderr=None,
+    triggers_config: Optional[str] = None,
+    triggers_queue_dir: Optional[str] = None,
+    triggers_idem_dir: Optional[str] = None,
+    triggers_dlq_dir: Optional[str] = None,
 ) -> StartDaemonResult:
     """Launch the daemon process if one is not already running."""
 
@@ -112,6 +116,14 @@ def start_daemon(
         if metadata:
             for key, value in metadata.items():
                 meta[key] = value
+        if triggers_config:
+            meta.setdefault("triggers", {})
+            meta["triggers"] = {
+                "config": triggers_config,
+                "queue_dir": triggers_queue_dir or queue_dir,
+                "idempotency_dir": triggers_idem_dir or queue_dir,
+                "dlq_dir": triggers_dlq_dir or queue_dir,
+            }
 
         write_state(
             paths,

@@ -31,6 +31,12 @@ from tm.runtime.idempotency import IdempotencyStore
 from tm.runtime.queue.manager import EnqueueOutcome, TaskQueueManager
 from tm.runtime.retry import load_retry_policy
 from tm.daemon import DaemonStatus, build_paths, collect_status, start_daemon, stop_daemon
+from tm.triggers.config import (
+    TriggerConfigError,
+    generate_sample_config,
+    load_trigger_config,
+)
+from tm.triggers.runner import run_triggers
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
@@ -40,6 +46,7 @@ from tm.cli.simulate import register_simulate_command
 
 _TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
 _DAEMON_FLAG_ENV = "TM_ENABLE_DAEMON"
+_DEFAULT_TRIGGER_CONFIG = "triggers.yaml"
 
 
 def _cli_version() -> str:
@@ -610,6 +617,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="inherit stdout/stderr instead of redirecting to a log file",
     )
+    daemon_start.add_argument(
+        "--enable-triggers",
+        action="store_true",
+        help="run triggers alongside workers (requires triggers config)",
+    )
+    daemon_start.add_argument(
+        "--triggers-config",
+        help="trigger configuration file to load when --enable-triggers is set",
+    )
 
     def _cmd_daemon_start(args):
         _require_daemon_enabled()
@@ -627,17 +643,24 @@ def _build_parser() -> argparse.ArgumentParser:
         dlq_dir = Path(args.dlq_dir).expanduser().resolve()
         dlq_dir.mkdir(parents=True, exist_ok=True)
 
+        triggers_config = None
+        if args.enable_triggers:
+            if not args.triggers_config:
+                print("--enable-triggers requires --triggers-config", file=sys.stderr)
+                return 1
+            triggers_config = str(Path(args.triggers_config).expanduser())
+            try:
+                load_trigger_config(triggers_config)
+            except TriggerConfigError as exc:
+                print(f"invalid triggers config: {exc}", file=sys.stderr)
+                return 1
         python_exec = Path(args.python).expanduser()
         command = [
             str(python_exec),
             "-m",
-            "tm.cli",
-            "workers",
-            "start",
-            "-n",
+            "tm.daemon.run",
+            "--workers",
             str(args.workers),
-            "--queue",
-            "file",
             "--queue-dir",
             str(queue_dir),
             "--idempotency-dir",
@@ -646,9 +669,9 @@ def _build_parser() -> argparse.ArgumentParser:
             str(dlq_dir),
             "--runtime",
             args.runtime,
-            "--pid-file",
-            str(Path(paths.root) / "workers.pid"),
         ]
+        if triggers_config:
+            command.extend(["--triggers-config", triggers_config])
 
         metadata = {
             "workers": args.workers,
@@ -656,9 +679,13 @@ def _build_parser() -> argparse.ArgumentParser:
             "idempotency_dir": str(idem_dir),
             "dlq_dir": str(dlq_dir),
         }
+        if triggers_config:
+            metadata["triggers_config"] = triggers_config
 
         env = os.environ.copy()
         env.setdefault(_DAEMON_FLAG_ENV, "1")
+        if triggers_config:
+            env.setdefault("TM_TRIGGERS_CONFIG", triggers_config)
 
         log_path: Optional[Path] = None
         log_handle = None
@@ -679,16 +706,23 @@ def _build_parser() -> argparse.ArgumentParser:
                 env=env,
                 stdout=stdout,
                 stderr=stderr,
+                triggers_config=triggers_config,
+                triggers_queue_dir=str(queue_dir),
+                triggers_idem_dir=str(idem_dir),
+                triggers_dlq_dir=str(dlq_dir),
             )
         finally:
             if log_handle is not None:
                 log_handle.close()
 
         if result.started:
-            note = ""
+            notes = []
             if not args.inherit_logs:
-                note = f" (logs: {log_path})"
-            print(f"started daemon pid {result.pid} (queue: {queue_dir}){note}")
+                notes.append(f"logs: {log_path}")
+            if triggers_config:
+                notes.append(f"triggers: {triggers_config}")
+            suffix = f" ({', '.join(notes)})" if notes else ""
+            print(f"started daemon pid {result.pid} (queue: {queue_dir}){suffix}")
             return 0
 
         reason = result.reason or "unknown"
@@ -768,6 +802,111 @@ def _build_parser() -> argparse.ArgumentParser:
         sys.exit(1)
 
     daemon_stop.set_defaults(func=_cmd_daemon_stop)
+
+    triggers_parser = sub.add_parser(
+        "triggers",
+        help="manage trigger configuration",
+        description="Generate and validate trigger configuration for the TraceMind trigger engine.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    triggers_sub = triggers_parser.add_subparsers(dest="tcmd")
+    triggers_sub.required = True
+
+    triggers_init = triggers_sub.add_parser(
+        "init",
+        help="write a sample triggers.yaml",
+    )
+    triggers_init.add_argument(
+        "--path",
+        default=_DEFAULT_TRIGGER_CONFIG,
+        help="destination config file (default: triggers.yaml)",
+    )
+    triggers_init.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite existing file",
+    )
+
+    def _cmd_triggers_init(args):
+        dest = Path(args.path)
+        if dest.exists() and not args.force:
+            print(f"{dest} already exists; use --force to overwrite", file=sys.stderr)
+            return 1
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        content = generate_sample_config()
+        dest.write_text(content, encoding="utf-8")
+        print(f"wrote sample trigger config to {dest}")
+        return 0
+
+    triggers_init.set_defaults(func=_cmd_triggers_init)
+
+    triggers_validate = triggers_sub.add_parser(
+        "validate",
+        help="validate an existing trigger configuration",
+    )
+    triggers_validate.add_argument(
+        "--path",
+        default=_DEFAULT_TRIGGER_CONFIG,
+        help="config file to validate (default: triggers.yaml)",
+    )
+
+    def _cmd_triggers_validate(args):
+        try:
+            cfg = load_trigger_config(args.path)
+        except TriggerConfigError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        total = sum(1 for _ in cfg.all())
+        print(f"trigger config OK ({total} trigger{'s' if total != 1 else ''})")
+        if cfg.cron:
+            print(f"- cron       : {len(cfg.cron)}")
+        if cfg.webhook:
+            print(f"- webhook    : {len(cfg.webhook)}")
+        if cfg.filesystem:
+            print(f"- filesystem : {len(cfg.filesystem)}")
+        return 0
+
+    triggers_validate.set_defaults(func=_cmd_triggers_validate)
+
+    triggers_run = triggers_sub.add_parser(
+        "run",
+        help="run trigger adapters and enqueue events",
+    )
+    triggers_run.add_argument(
+        "--config",
+        default=_DEFAULT_TRIGGER_CONFIG,
+        help="trigger config file (default: triggers.yaml)",
+    )
+    triggers_run.add_argument(
+        "--queue-dir",
+        default="data/queue",
+        help="queue directory (file backend)",
+    )
+    triggers_run.add_argument(
+        "--idempotency-dir",
+        default="data/idempotency",
+        help="idempotency directory",
+    )
+    triggers_run.add_argument(
+        "--dlq-dir",
+        default="data/dlq",
+        help="dead letter queue directory",
+    )
+
+    def _cmd_triggers_run(args):
+        try:
+            run_triggers(
+                config_path=args.config,
+                queue_dir=args.queue_dir,
+                idempotency_dir=args.idempotency_dir,
+                dlq_dir=args.dlq_dir,
+            )
+        except TriggerConfigError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+
+    triggers_run.set_defaults(func=_cmd_triggers_run)
 
     workers_parser = sub.add_parser(
         "workers",
