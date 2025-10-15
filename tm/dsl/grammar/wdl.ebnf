@@ -1,0 +1,38 @@
+# Workflow-DSL (WDL) surface grammar (draft).
+#
+# This EBNF describes the minimal syntax currently supported by the parser.
+# The notation follows RFC 5234 with the following conventions:
+#   * indentation is significant.
+#   * `NL` stands for a newline token.
+#   * `INDENT`/`DEDENT` denote indentation changes (Python-style layout).
+#
+# start            = document
+# document         = header-section step-section output-section?
+#
+# header-section   = version-decl workflow-decl inputs-section?
+# version-decl     = "version" ":" identifier NL
+# workflow-decl    = "workflow" ":" identifier NL
+#
+# inputs-section   = "inputs" ":" NL INDENT input-decl+ DEDENT
+# input-decl       = identifier ":" type-ref NL
+#
+# step-section     = "steps" ":" NL INDENT step-entry+ DEDENT
+# step-entry       = call-step / when-step
+# call-step        = "-" IDENT "(" IDENT ("." IDENT)* ")" ":" NL INDENT binding* DEDENT
+# binding          = identifier ":" expression NL
+# when-step        = "-" "when" expression ":" NL INDENT step-entry+ / call-step DEDENT
+#
+# output-section   = "outputs" ":" NL INDENT binding+ DEDENT
+#
+# expression       = scalar / list-literal / mapping-literal
+# scalar           = identifier / string / number / reference
+# list-literal     = "[" [expression *("," expression)] "]"
+# mapping-literal  = "{" [identifier ":" expression *("," identifier ":" expression)] "}"
+# reference        = "$" identifier *("." identifier)
+#
+# identifier       = ALPHA *(ALPHA / DIGIT / "_" / "-")
+# string           = double-quoted / single-quoted literals
+# number           = decimal / integer
+#
+# The grammar intentionally remains permissive for expressions: they are
+# collected as raw strings during parsing and analysed at later stages.

@@ -40,6 +40,7 @@ from tm.triggers.runner import run_triggers
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
+from tm.cli.dsl import register_dsl_commands
 from tm.cli.flow import register_flow_commands
 from tm.cli.validate import register_validate_command
 from tm.cli.simulate import register_simulate_command
@@ -1243,6 +1244,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     dlq_purge.set_defaults(func=_cmd_dlq_purge)
 
+    register_dsl_commands(sub)
     register_flow_commands(sub)
     register_validate_command(sub)
     register_simulate_command(sub)

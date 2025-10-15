@@ -1,0 +1,38 @@
+# Policy-DSL (PDL) surface grammar (draft).
+#
+# PDL mirrors YAML-like indentation with a declarative core and a small
+# expression sub-language. The grammar below documents the structures that
+# the parser recognises; expression parsing is deferred to later stages.
+#
+# start            = document
+# document         = version-decl arms-section evaluate-section emit-section
+#
+# version-decl     = "version" ":" identifier NL
+#
+# arms-section     = "arms" ":" NL INDENT arm-entry+ DEDENT
+# arm-entry        = identifier ":" NL INDENT arm-field+ DEDENT
+# arm-field        = identifier ":" scalar-expression NL
+#
+# evaluate-section = "evaluate" ":" NL INDENT clause+ DEDENT
+# clause           = assignment / conditional / choose
+# assignment       = identifier ":=" expression NL
+# conditional      = "if" expression ":" NL INDENT clause+ DEDENT
+# choose           = "choose" ":" NL INDENT choice+ DEDENT
+# choice           = identifier ":" assignment+ [probability] NL
+# probability      = "with" "p" "=" number
+#
+# emit-section     = "emit" ":" NL INDENT emit-field+ DEDENT
+# emit-field       = identifier ":" expression NL
+#
+# expression       = scalar / function-call / mapping / list
+# scalar           = identifier / string / number / boolean
+# function-call    = identifier "(" [expression *("," expression)] ")"
+# mapping          = "{" [identifier ":" expression *("," identifier ":" expression)] "}"
+# list             = "[" [expression *("," expression)] "]"
+#
+# identifier       = ALPHA *(ALPHA / DIGIT / "_" / "-")
+# string           = single-quoted / double-quoted literals
+# number           = decimal / integer
+# boolean          = "true" / "false"
+#
+# The parser captures the surface forms as raw strings for semantic analysis.
