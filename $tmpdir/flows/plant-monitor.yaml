@@ -1,0 +1,103 @@
+flow:
+  id: plant-monitor
+  version: dsl/v0
+  entry: read
+  steps:
+  - id: read
+    kind: task
+    config:
+      call:
+        target: opcua.read
+        args:
+          endpoint: $input.endpoint
+          node_ids: $input.nodes
+    hooks:
+      run: tm.dsl.runtime.call
+  - id: decide
+    kind: task
+    config:
+      call:
+        target: policy.apply
+        args:
+          values: $step.read.values
+      policy_ref: /media/working/src/TraceMind/$tmpdir/policies/plant-monitor.json
+      policy_id: plant-monitor
+    hooks:
+      run: tm.dsl.runtime.call
+  - id: when_0
+    kind: switch
+    config:
+      key_from: $.vars.decide.action
+      cases:
+        WRITE_BACK: write
+        SHUTDOWN: write
+      default: _DEFAULT
+    hooks:
+      run: tm.dsl.runtime.switch
+  - id: write
+    kind: task
+    config:
+      call:
+        target: opcua.write
+        args:
+          endpoint: $input.endpoint
+          node_id: $step.decide.target_node
+          value: $step.decide.value
+    hooks:
+      run: tm.dsl.runtime.call
+  - id: emit_1
+    kind: task
+    config:
+      outputs:
+        decision: $step.decide
+    hooks:
+      run: tm.dsl.runtime.emit_outputs
+  - id: finish_2
+    kind: finish
+  edges:
+  - from: read
+    to: decide
+  - from: when_0
+    to: write
+    when: WRITE_BACK
+  - from: when_0
+    to: write
+    when: SHUTDOWN
+  - from: decide
+    to: when_0
+  - from: write
+    to: emit_1
+  - from: when_0
+    to: emit_1
+    when: _DEFAULT
+  - from: emit_1
+    to: finish_2
+  metadata:
+    dsl:
+      version: dsl/v0
+      source: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl
+      steps:
+        read:
+          line: 7
+          column: 5
+          filename: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl
+        decide:
+          line: 10
+          column: 5
+          filename: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl
+        when_0:
+          line: 12
+          column: 5
+          filename: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl
+        write:
+          line: 13
+          column: 7
+          filename: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl
+        emit_1:
+          line: 18
+          column: 3
+          filename: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl
+        finish_2:
+          line: 1
+          column: 1
+          filename: /media/working/src/TraceMind/examples/dsl/opcua/plant-monitor.wdl

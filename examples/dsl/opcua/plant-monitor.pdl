@@ -1,0 +1,20 @@
+version: pdl/v0
+arms:
+  default:
+    threshold: 75.0
+    action_on_violation: WRITE_BACK
+    target_node: ns=2;i=5001
+epsilon: 0.1
+evaluate:
+  temp := coalesce(values["ns=2;i=2"], first_numeric(values))
+  if temp >= arms.active.threshold:
+    choose:
+      exploit: action = arms.active.action_on_violation
+      explore: random(["NONE","WRITE_BACK","SHUTDOWN"]) with p=epsilon
+  else:
+    action = "NONE"
+emit:
+  action: action
+  target_node: arms.active.target_node
+  value: 1
+  reason: { temp: temp, threshold: arms.active.threshold }

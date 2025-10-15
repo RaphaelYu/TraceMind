@@ -1,0 +1,4 @@
+{
+  "endpoint": "opc.tcp://localhost:4840",
+  "nodes": ["ns=2;i=2", "ns=2;i=5001"]
+}

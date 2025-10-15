@@ -146,6 +146,23 @@ asyncio.run(main())
 PY
 ```
 
+### DSL Tooling (WDL / PDL)
+
+TraceMind ships a DSL layer for workflows (WDL) and policies (PDL). Install the optional extras once (`pip install networkx PyYAML`) and you can lint/compile directly from the repo:
+
+```bash
+# Lint individual files or directories
+python -m tm.cli dsl lint examples/dsl/opcua
+
+# Compile to runtime artifacts (writes out/flows + out/policies)
+python -m tm.cli dsl compile examples/dsl/opcua --out out/dsl --force
+
+# Run the compiled flow with the example inputs
+python -m tm.cli run out/dsl/flows/plant-monitor.yaml -i '@examples/dsl/opcua/input.json'
+```
+
+For CI-style smoke tests, use `scripts/validate_dsl_examples.sh` which performs the lint/compile/run loop end to end (it respects `$PYTHON` and checks for the `networkx` dependency). The generated artifacts carry source metadata so downstream tools can trace decisions back to DSL files.
+
 ### Always-on Agent quickstart
 
 Reuse the copy/paste examples in the validation guide to keep agents continuously self-checking:

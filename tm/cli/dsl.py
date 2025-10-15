@@ -4,8 +4,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, List
 
+from tm.dsl.compiler import CompileError, CompiledArtifact, compile_paths
 from tm.dsl.lint import LintIssue, lint_paths
 
 _DSL_EXTENSIONS = (".wdl", ".pdl")
@@ -17,6 +18,7 @@ def register_dsl_commands(subparsers: argparse._SubParsersAction[argparse.Argume
     dsl_subparsers = parser.add_subparsers(dest="dsl_command")
 
     _register_lint(dsl_subparsers)
+    _register_compile(dsl_subparsers)
 
 
 def _register_lint(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -25,6 +27,22 @@ def _register_lint(subparsers: argparse._SubParsersAction[argparse.ArgumentParse
     parser.add_argument("--json", dest="json_output", action="store_true", help="Emit machine-readable JSON")
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors (reserved for future use)")
     parser.set_defaults(func=_cmd_lint)
+
+
+def _register_compile(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser(
+        "compile",
+        help="Compile DSL files into flow/policy artifacts",
+        description="Compile WDL/PDL into flow YAML and policy JSON artifacts.",
+        epilog="Examples:\n  tm dsl compile examples/dsl/opcua --out out/dsl\n  tm dsl compile flow.wdl policy.pdl --json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("paths", nargs="+", help="Files or directories containing .wdl/.pdl files")
+    parser.add_argument("--out", default="out", help="Output directory for compiled artifacts (default: out/)")
+    parser.add_argument("--json", dest="json_output", action="store_true", help="Emit machine-readable JSON")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing artifacts")
+    parser.add_argument("--no-lint", action="store_true", help="Skip linting before compilation")
+    parser.set_defaults(func=_cmd_compile)
 
 
 def _dsl_default(args: argparse.Namespace) -> None:
@@ -45,6 +63,48 @@ def _cmd_lint(args: argparse.Namespace) -> None:
         _print_text(issues)
     exit_code = 1 if any(issue.level == "error" for issue in issues) else 0
     sys.exit(exit_code)
+
+
+def _cmd_compile(args: argparse.Namespace) -> None:
+    candidate_paths = [Path(p) for p in args.paths]
+    out_dir = Path(args.out)
+    try:
+        artifacts = compile_paths(
+            candidate_paths,
+            out_dir=out_dir,
+            force=args.force,
+            run_lint=not args.no_lint,
+        )
+    except CompileError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    if args.json_output:
+        _print_compile_json(artifacts)
+    else:
+        _print_compile_text(artifacts, out_dir)
+
+
+def _print_compile_text(artifacts: List[CompiledArtifact], out_dir: Path) -> None:
+    if not artifacts:
+        print("No artifacts generated")
+        return
+    print(f"Wrote artifacts to {out_dir.resolve()}:")
+    for artifact in artifacts:
+        print(f"  [{artifact.kind}] {artifact.output}")
+
+
+def _print_compile_json(artifacts: List[CompiledArtifact]) -> None:
+    data = [
+        {
+            "source": str(artifact.source),
+            "kind": artifact.kind,
+            "id": artifact.identifier,
+            "output": str(artifact.output),
+        }
+        for artifact in artifacts
+    ]
+    json.dump({"artifacts": data}, sys.stdout, indent=2)
+    sys.stdout.write("\n")
 
 
 def _resolve_paths(candidates: Sequence[Path]) -> Iterable[Path]:

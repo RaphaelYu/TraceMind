@@ -25,6 +25,9 @@ from .ir import (
 )
 from .parser import DslParseError, ParsedDocument, parse_pdl, parse_wdl
 from .lint import LintIssue, lint_path, lint_paths
+from .compiler import CompileError, CompiledArtifact, compile_paths
+from .compiler_flow import FlowCompilation, FlowCompileError, compile_workflow
+from .compiler_policy import PolicyCompilation, PolicyCompileError, compile_policy
 
 __all__ = [
     "DslParseError",
@@ -55,4 +58,13 @@ __all__ = [
     "LintIssue",
     "lint_path",
     "lint_paths",
+    "compile_paths",
+    "CompileError",
+    "CompiledArtifact",
+    "compile_workflow",
+    "FlowCompilation",
+    "FlowCompileError",
+    "compile_policy",
+    "PolicyCompilation",
+    "PolicyCompileError",
 ]
