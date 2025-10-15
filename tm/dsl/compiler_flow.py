@@ -8,7 +8,6 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple, cast
 from ._render import render_raw_node
 from .ir import (
     SourceSpan,
-    WdlArgument,
     WdlCallStep,
     WdlOutput,
     WdlStep,

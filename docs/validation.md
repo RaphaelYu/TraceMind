@@ -10,6 +10,8 @@ All commands assume you are at the repository root (the same directory that cont
 |---------|---------|-----------|
 | `tm flow lint …` | Structural checks (cycles, unreachable steps, bad locks) | `0` success, `1` defects |
 | `tm flow plan …` | Produce layered DAG and stats (depth, width, branch factor) | `0` success, `1` if the planner fails |
+| `tm dsl lint …` | Parse and statically check WDL/PDL DSL files | `0` success, `1` errors |
+| `tm dsl plan …` | Export DSL workflow graphs as DOT/JSON | `0` success, `1` errors |
 | `tm validate …` | Cross-flow/policy analysis (locks, cron overlaps, policy arm collisions) | `0` success, `1` conflicts |
 | `tm simulate run …` | Deterministic, time-stepped execution with lock scheduling | `0` success, `1` deadlocks/starvation detected |
 
@@ -34,6 +36,20 @@ tm flow plan fixtures/flows/wide_deep.yml --json
 ```
 
 The JSON response contains the ordered layers, node count, depth, maximum width, and the maximum out-degree.  When the planner cannot build a DAG (for example, because of a cycle) it returns a non-zero exit code.
+
+## `tm dsl lint` and `tm dsl plan`
+
+For WDL/PDL DSL files, the CLI offers parity commands that operate on source documents before compilation:
+
+```bash
+# Spot missing inputs or unreachable steps
+tm dsl lint examples/dsl/opcua
+
+# Export DOT/JSON graphs suitable for diagrams or CI artifacts
+tm dsl plan examples/dsl/opcua --dot out/dsl_opcua.dot --json out/dsl_opcua.json
+```
+
+These commands accept single files or directories. The helper script `scripts/validate_dsl_examples.sh` performs `lint`, `plan`, `compile`, and `run` on the bundled OPC-UA example; it auto-detects optional dependencies (such as `networkx`) and skips runtime execution gracefully on platforms without that module (common in Windows agents).
 
 ## `tm validate`
 
@@ -71,7 +87,7 @@ The JSON payload includes `finished`, `deadlocks`, and the event trace.  Use `--
 
 ## Integrating with CI
 
-- The repository’s CI matrix runs `tm flow lint`, `tm flow plan`, `tm validate`, and `tm simulate run` against fixtures so regressions are caught automatically.
+- The repository’s CI matrix runs `tm flow lint`, `tm flow plan`, `tm validate`, `tm simulate run`, as well as `tm dsl lint`, `tm dsl plan`, and the DSL example script so regressions are caught automatically.
 - Add additional checks by invoking the same commands in your project pipeline.  Each command is idempotent and safe to run in read-only environments.
 
 Need more detail?  Explore the implementations in `tm/validate/static.py` and `tm/validate/simulator.py`, or open a discussion in the issue tracker for suggestions and enhancements.

@@ -28,6 +28,18 @@ from .lint import LintIssue, lint_path, lint_paths
 from .compiler import CompileError, CompiledArtifact, compile_paths
 from .compiler_flow import FlowCompilation, FlowCompileError, compile_workflow
 from .compiler_policy import PolicyCompilation, PolicyCompileError, compile_policy
+from .plan import (
+    PlanEdge,
+    PlanError,
+    PlanNode,
+    WorkflowPlan,
+    plan_path,
+    plan_paths,
+    plan_text,
+    build_workflow_plan,
+    plan_to_dict,
+    plan_to_dot,
+)
 
 __all__ = [
     "DslParseError",
@@ -67,4 +79,14 @@ __all__ = [
     "compile_policy",
     "PolicyCompilation",
     "PolicyCompileError",
+    "plan_path",
+    "plan_paths",
+    "plan_text",
+    "PlanNode",
+    "PlanEdge",
+    "WorkflowPlan",
+    "PlanError",
+    "build_workflow_plan",
+    "plan_to_dict",
+    "plan_to_dot",
 ]

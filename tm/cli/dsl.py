@@ -4,10 +4,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Iterable, Sequence, List
+from typing import Iterable, Sequence, List, Tuple
 
 from tm.dsl.compiler import CompileError, CompiledArtifact, compile_paths
 from tm.dsl.lint import LintIssue, lint_paths
+from tm.dsl.plan import PlanError, WorkflowPlan, plan_paths, plan_to_dict, plan_to_dot
 
 _DSL_EXTENSIONS = (".wdl", ".pdl")
 
@@ -19,6 +20,7 @@ def register_dsl_commands(subparsers: argparse._SubParsersAction[argparse.Argume
 
     _register_lint(dsl_subparsers)
     _register_compile(dsl_subparsers)
+    _register_plan(dsl_subparsers)
 
 
 def _register_lint(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -43,6 +45,28 @@ def _register_compile(subparsers: argparse._SubParsersAction[argparse.ArgumentPa
     parser.add_argument("--force", action="store_true", help="Overwrite existing artifacts")
     parser.add_argument("--no-lint", action="store_true", help="Skip linting before compilation")
     parser.set_defaults(func=_cmd_compile)
+
+
+def _register_plan(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser(
+        "plan",
+        help="Generate plan graphs for workflows",
+        description="Analyze WDL workflows and export plan graphs as DOT/JSON.",
+        epilog="Examples:\n  tm dsl plan flow.wdl --dot out/flow.dot\n  tm dsl plan flows/ --json out/plans",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("paths", nargs="+", help="Files or directories containing .wdl workflows")
+    parser.add_argument(
+        "--dot",
+        dest="dot_path",
+        help="Write Graphviz DOT output to this file or directory (directory required for multiple workflows)",
+    )
+    parser.add_argument(
+        "--json",
+        dest="json_path",
+        help="Write plan JSON output to this file or directory (directory required for multiple workflows)",
+    )
+    parser.set_defaults(func=_cmd_plan)
 
 
 def _dsl_default(args: argparse.Namespace) -> None:
@@ -84,6 +108,34 @@ def _cmd_compile(args: argparse.Namespace) -> None:
         _print_compile_text(artifacts, out_dir)
 
 
+def _cmd_plan(args: argparse.Namespace) -> None:
+    candidate_paths = [Path(p) for p in args.paths]
+    try:
+        plans = plan_paths(candidate_paths)
+    except PlanError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+
+    _print_plan_summary(plans)
+    if args.dot_path:
+        try:
+            _write_plan_outputs(plans, Path(args.dot_path), ".dot", plan_to_dot)
+        except PlanError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+    if args.json_path:
+        try:
+            _write_plan_outputs(
+                plans,
+                Path(args.json_path),
+                ".json",
+                lambda plan: json.dumps(plan_to_dict(plan), indent=2),
+            )
+        except PlanError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+
+
 def _print_compile_text(artifacts: List[CompiledArtifact], out_dir: Path) -> None:
     if not artifacts:
         print("No artifacts generated")
@@ -105,6 +157,42 @@ def _print_compile_json(artifacts: List[CompiledArtifact]) -> None:
     ]
     json.dump({"artifacts": data}, sys.stdout, indent=2)
     sys.stdout.write("\n")
+
+
+def _print_plan_summary(plans: List[Tuple[Path, WorkflowPlan]]) -> None:
+    for source, plan in plans:
+        print(f"{source}: entry={plan.entry or 'unknown'}, nodes={len(plan.nodes)}, edges={len(plan.edges)}")
+
+
+def _write_plan_outputs(
+    plans: List[Tuple[Path, WorkflowPlan]],
+    destination: Path,
+    extension: str,
+    formatter,
+) -> None:
+    paths = _resolve_output_targets(plans, destination, extension)
+    for (source, plan), output_path in zip(plans, paths):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        data = formatter(plan)
+        with output_path.open("w", encoding="utf-8") as fh:
+            fh.write(data if isinstance(data, str) else str(data))
+
+
+def _resolve_output_targets(
+    plans: List[Tuple[Path, WorkflowPlan]],
+    destination: Path,
+    extension: str,
+) -> List[Path]:
+    if len(plans) == 1 and destination.suffix:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        return [destination]
+    if destination.suffix:
+        raise PlanError("Multiple workflows require a directory output for plan artifacts")
+    destination.mkdir(parents=True, exist_ok=True)
+    targets: List[Path] = []
+    for _, plan in plans:
+        targets.append(destination / f"{plan.name}{extension}")
+    return targets
 
 
 def _resolve_paths(candidates: Sequence[Path]) -> Iterable[Path]:

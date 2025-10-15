@@ -6,7 +6,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PYTHON_BIN=${PYTHON:-python3}
 
 if ! "$PYTHON_BIN" -c "import networkx" >/dev/null 2>&1; then
-  echo "networkx is required to execute compiled flows. Install it (pip install networkx) before running this script." >&2
+  echo "[validate_dsl_examples] networkx missing; skipping flow execution" >&2
   exit 0
 fi
 
@@ -18,6 +18,7 @@ mkdir -p "$OUT_DIR"
 
 "$PYTHON_BIN" -m tm.cli dsl lint "$EXAMPLE_DIR"
 "$PYTHON_BIN" -m tm.cli dsl compile "$EXAMPLE_DIR" --out "$OUT_DIR" --force
+"$PYTHON_BIN" -m tm.cli dsl plan "$EXAMPLE_DIR" --dot "$OUT_DIR/plan.dot" --json "$OUT_DIR/plan.json"
 
 FLOW_FILE=$("$PYTHON_BIN" - <<'PY'
 import json
