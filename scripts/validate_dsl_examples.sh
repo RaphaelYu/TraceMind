@@ -45,4 +45,8 @@ if [[ -z "$FLOW_FILE" ]]; then
   exit 1
 fi
 
-"$PYTHON_BIN" -m tm.cli run "$FLOW_FILE" -i "@${INPUT_FILE}"
+if [[ "$HAS_NETWORKX" -eq 1 ]]; then
+  "$PYTHON_BIN" -m tm.cli run "$FLOW_FILE" -i "@${INPUT_FILE}"
+else
+  echo "[validate_dsl_examples] skipping flow execution (networkx unavailable)" >&2
+fi

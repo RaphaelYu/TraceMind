@@ -51,6 +51,42 @@ tm dsl plan examples/dsl/opcua --dot out/dsl_opcua.dot --json out/dsl_opcua.json
 
 These commands accept single files or directories. The helper script `scripts/validate_dsl_examples.sh` performs `lint`, `plan`, `compile`, `testgen`, `triggers validate`, and (when dependencies allow) `run` on the bundled OPC-UA example; it auto-detects optional dependencies (such as `networkx`) and skips the runtime execution gracefully on platforms without that module (common in Windows agents).
 
+### End-to-end OPC-UA workflow
+
+The repository ships a complete DSL example under `examples/dsl/opcua/` that demonstrates the full design process:
+
+1. **Lint & plan the DSL**
+   ```bash
+   tm dsl lint examples/dsl/opcua
+   tm dsl plan examples/dsl/opcua --dot out/opcua.dot --json out/opcua.json
+   ```
+
+2. **Compile to runtime artifacts**
+   ```bash
+   tm dsl compile examples/dsl/opcua --out out/opcua --force
+   ```
+   This produces `out/opcua/flows/plant-monitor.yaml`, `out/opcua/policies/plant-monitor.json`, and `out/opcua/triggers.yaml`.
+
+3. **Generate fixtures**
+   ```bash
+   tm dsl testgen examples/dsl/opcua/plant-monitor.pdl --out examples/fixtures/opcua
+   ```
+   Fixtures can be replayed with `tm validate` / `tm simulate` like any other test input.
+
+4. **Validate compiled artifacts**
+   ```bash
+   tm flow lint out/opcua/flows/plant-monitor.yaml
+   tm triggers validate out/opcua/triggers.yaml
+   tm validate out/opcua/flows/plant-monitor.yaml -i examples/dsl/opcua/input.json
+   ```
+
+5. **Run the flow (optional)**
+   ```bash
+   tm run out/opcua/flows/plant-monitor.yaml -i '@examples/dsl/opcua/input.json'
+   ```
+
+No bespoke Python policy code is required: the flow executes the compiled PDL via the built-in evaluator.  For CI automation, `scripts/validate_dsl_examples.sh` ties all these steps together and skips execution gracefully when optional dependencies are missing.
+
 ## `tm validate`
 
 `tm validate` inspects flows and policies together, looking for lock conflicts, cron schedule overlaps, and policy arm collisions.  The command accepts glob patterns or explicit filenames.

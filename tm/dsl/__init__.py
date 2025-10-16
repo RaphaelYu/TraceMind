@@ -48,6 +48,12 @@ from .testgen import (
     generate_for_path,
     discover_inputs,
 )
+from .evaluator import (
+    PolicyEvaluationError,
+    EvaluationInput,
+    load_policy,
+    evaluate_policy,
+)
 
 __all__ = [
     "DslParseError",
@@ -103,4 +109,8 @@ __all__ = [
     "TestGenResult",
     "generate_for_path",
     "discover_inputs",
+    "PolicyEvaluationError",
+    "EvaluationInput",
+    "load_policy",
+    "evaluate_policy",
 ]
