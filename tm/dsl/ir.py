@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
+from ._render import render_raw_node
 from .parser import (
     DslParseError,
     ParsedDocument,
@@ -75,12 +77,20 @@ class WdlOutput:
 
 
 @dataclass(frozen=True)
+class WdlTrigger:
+    trigger_type: str
+    config: Dict[str, object]
+    location: SourceSpan
+
+
+@dataclass(frozen=True)
 class WdlWorkflow:
     version: str
     name: str
     inputs: Tuple[WdlInput, ...]
     steps: Tuple[WdlStep, ...]
     outputs: Tuple[WdlOutput, ...]
+    triggers: Tuple[WdlTrigger, ...]
     location: SourceSpan
 
 
@@ -222,12 +232,18 @@ def build_wdl_ir(document: ParsedDocument) -> WdlWorkflow:
     steps_sequence = _require_sequence(steps_node, "steps", ctx)
     steps = tuple(_parse_wdl_step(item, ctx) for item in steps_sequence.items)
 
+    triggers_node = top.get("triggers")
+    triggers: Tuple[WdlTrigger, ...] = ()
+    if triggers_node is not None:
+        triggers = tuple(_parse_wdl_triggers(triggers_node, ctx))
+
     return WdlWorkflow(
         version=version,
         name=workflow_name,
         inputs=inputs,
         steps=steps,
         outputs=outputs,
+        triggers=triggers,
         location=_span(ctx, document.root.location),
     )
 
@@ -560,6 +576,86 @@ def _node_location(node: RawNode) -> SourceLocation:
     if isinstance(node, RawSequence):
         return node.location
     raise TypeError(f"Unsupported node type: {type(node)!r}")
+
+
+def _require_sequence_or_mapping(node: RawNode, label: str, ctx: _Context) -> RawNode:
+    if isinstance(node, (RawSequence, RawMapping)):
+        return node
+    raise _ctx_error(ctx, f"Expected list or mapping for {label}", _node_location(node))
+
+
+def _parse_wdl_triggers(node: RawNode, ctx: _Context) -> List[WdlTrigger]:
+    normalized = _require_sequence_or_mapping(node, "triggers", ctx)
+    triggers: List[WdlTrigger] = []
+    if isinstance(normalized, RawSequence):
+        for item in normalized.items:
+            if not isinstance(item, RawMapping):
+                raise _ctx_error(ctx, "Trigger entries must be mappings", _node_location(item))
+            triggers.extend(_parse_trigger_mapping(item, ctx))
+    elif isinstance(normalized, RawMapping):
+        triggers.extend(_parse_trigger_mapping(normalized, ctx))
+    return triggers
+
+
+def _parse_trigger_mapping(mapping: RawMapping, ctx: _Context) -> List[WdlTrigger]:
+    triggers: List[WdlTrigger] = []
+    explicit_type = next((entry for entry in mapping.entries if entry.key == "type"), None)
+    if explicit_type is not None:
+        trigger_type = _expect_scalar_text(explicit_type.value, ctx, "trigger type")
+        config: Dict[str, object] = {}
+        for entry in mapping.entries:
+            if entry is explicit_type or entry.key is None:
+                continue
+            config[entry.key] = render_raw_node(entry.value)
+        triggers.append(
+            WdlTrigger(
+                trigger_type=trigger_type,
+                config=config,
+                location=SourceSpan.from_location(ctx.filename, explicit_type.key_location),
+            )
+        )
+        return triggers
+
+    for entry in mapping.entries:
+        if entry.key is None:
+            continue
+        config_obj = _normalize_config(render_raw_node(entry.value))
+        if not isinstance(config_obj, dict):
+            config_obj = {"value": config_obj}
+        triggers.append(
+            WdlTrigger(
+                trigger_type=entry.key,
+                config=config_obj,
+                location=SourceSpan.from_location(ctx.filename, entry.key_location),
+            )
+        )
+    return triggers
+
+
+def _expect_scalar_text(node: RawNode, ctx: _Context, label: str) -> str:
+    if isinstance(node, RawScalar):
+        raw = node.value.strip()
+        normalized = _normalize_config(raw)
+        return normalized if isinstance(normalized, str) else raw
+    raise _ctx_error(ctx, f"Expected scalar text for {label}", _node_location(node))
+
+
+def _normalize_config(value: object) -> object:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if (stripped.startswith('"') and stripped.endswith('"')) or (
+            stripped.startswith("'") and stripped.endswith("'")
+        ):
+            try:
+                return ast.literal_eval(stripped)
+            except Exception:
+                return stripped
+        return stripped
+    if isinstance(value, list):
+        return [_normalize_config(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _normalize_config(item) for key, item in value.items()}
+    return value
 
 
 __all__ = [

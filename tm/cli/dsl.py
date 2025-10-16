@@ -9,6 +9,7 @@ from typing import Iterable, Sequence, List, Tuple
 from tm.dsl.compiler import CompileError, CompiledArtifact, compile_paths
 from tm.dsl.lint import LintIssue, lint_paths
 from tm.dsl.plan import PlanError, WorkflowPlan, plan_paths, plan_to_dict, plan_to_dot
+from tm.dsl.testgen import TestGenError, generate_for_path, discover_inputs
 
 _DSL_EXTENSIONS = (".wdl", ".pdl")
 
@@ -21,6 +22,7 @@ def register_dsl_commands(subparsers: argparse._SubParsersAction[argparse.Argume
     _register_lint(dsl_subparsers)
     _register_compile(dsl_subparsers)
     _register_plan(dsl_subparsers)
+    _register_testgen(dsl_subparsers)
 
 
 def _register_lint(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -67,6 +69,21 @@ def _register_plan(subparsers: argparse._SubParsersAction[argparse.ArgumentParse
         help="Write plan JSON output to this file or directory (directory required for multiple workflows)",
     )
     parser.set_defaults(func=_cmd_plan)
+
+
+def _register_testgen(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    parser = subparsers.add_parser(
+        "testgen",
+        help="Generate fixtures from DSL workflows/policies",
+        description="Produce test cases (inputs + expectations) for WDL/PDL documents.",
+        epilog="Examples:\n  tm dsl testgen examples/dsl/opcua --out examples/fixtures\n  tm dsl testgen flow.wdl --max-cases 10",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("paths", nargs="+", help="Files or directories containing .wdl/.pdl files")
+    parser.add_argument("--out", default="examples/fixtures", help="Output directory for generated fixtures")
+    parser.add_argument("--max-cases", type=int, help="Maximum number of cases per document")
+    parser.add_argument("--json", dest="json_output", action="store_true", help="Emit summary as JSON")
+    parser.set_defaults(func=_cmd_testgen)
 
 
 def _dsl_default(args: argparse.Namespace) -> None:
@@ -136,6 +153,27 @@ def _cmd_plan(args: argparse.Namespace) -> None:
             sys.exit(1)
 
 
+def _cmd_testgen(args: argparse.Namespace) -> None:
+    candidates = discover_inputs([Path(p) for p in args.paths])
+    if not candidates:
+        print("No DSL files found", file=sys.stderr)
+        sys.exit(1)
+    out_dir = Path(args.out)
+    errors: List[str] = []
+    results = []
+    for path in candidates:
+        try:
+            result = generate_for_path(path, max_cases=args.max_cases, output_dir=out_dir)
+            results.append(result)
+        except TestGenError as exc:
+            errors.append(f"{path}: {exc}")
+    if errors:
+        for line in errors:
+            print(line, file=sys.stderr)
+        sys.exit(1)
+    _print_testgen_summary(results, json_output=args.json_output)
+
+
 def _print_compile_text(artifacts: List[CompiledArtifact], out_dir: Path) -> None:
     if not artifacts:
         print("No artifacts generated")
@@ -193,6 +231,26 @@ def _resolve_output_targets(
     for _, plan in plans:
         targets.append(destination / f"{plan.name}{extension}")
     return targets
+
+
+def _print_testgen_summary(results, json_output: bool) -> None:
+    if json_output:
+        payload = [
+            {
+                "source": str(result.source),
+                "kind": result.kind,
+                "cases": len(result.cases),
+                "output_dir": str(result.output_dir),
+            }
+            for result in results
+        ]
+        json.dump({"fixtures": payload}, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return
+    for result in results:
+        print(
+            f"{result.source}: generated {len(result.cases)} case(s) -> {result.output_dir}"  # pragma: no cover - CLI output
+        )
 
 
 def _resolve_paths(candidates: Sequence[Path]) -> Iterable[Path]:

@@ -15,6 +15,9 @@ pytest.importorskip("yaml", reason="PyYAML required for DSL compilation")
 WDL_SAMPLE = """
 version: dsl/v0
 workflow: plant-monitor
+triggers:
+  cron:
+    schedule: "* * * * *"
 inputs:
   endpoint: string
   nodes: list<string>
@@ -57,8 +60,10 @@ def test_tm_dsl_compile(tmp_path: Path) -> None:
     out_dir = tmp_path / "out"
     flow_dir = out_dir / "flows"
     policy_dir = out_dir / "policies"
+    triggers_file = out_dir / "triggers.yaml"
     assert flow_dir.exists()
     assert policy_dir.exists()
+    assert triggers_file.exists()
 
 
 def test_tm_dsl_compile_json(tmp_path: Path) -> None:
@@ -71,4 +76,7 @@ def test_tm_dsl_compile_json(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
-    assert payload["artifacts"]
+    kinds = {item["kind"] for item in payload["artifacts"]}
+    assert "trigger" in kinds
+    build_dir = tmp_path / "build"
+    assert (build_dir / "triggers.yaml").exists()

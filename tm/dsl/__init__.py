@@ -14,6 +14,7 @@ from .ir import (
     WdlArgument,
     WdlCallStep,
     WdlInput,
+    WdlTrigger,
     WdlOutput,
     WdlStep,
     WdlWhenStep,
@@ -40,6 +41,13 @@ from .plan import (
     plan_to_dict,
     plan_to_dot,
 )
+from .testgen import (
+    TestGenError,
+    GeneratedCase,
+    TestGenResult,
+    generate_for_path,
+    discover_inputs,
+)
 
 __all__ = [
     "DslParseError",
@@ -53,6 +61,7 @@ __all__ = [
     "WdlCallStep",
     "WdlWhenStep",
     "WdlOutput",
+    "WdlTrigger",
     "WdlWorkflow",
     "PdlArm",
     "PdlArmField",
@@ -89,4 +98,9 @@ __all__ = [
     "build_workflow_plan",
     "plan_to_dict",
     "plan_to_dot",
+    "TestGenError",
+    "GeneratedCase",
+    "TestGenResult",
+    "generate_for_path",
+    "discover_inputs",
 ]

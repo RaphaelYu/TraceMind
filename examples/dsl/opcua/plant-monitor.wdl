@@ -1,5 +1,8 @@
 version: dsl/v0
 workflow: plant-monitor
+triggers:
+  cron:
+    schedule: "*/5 * * * *"
 inputs:
   endpoint: string
   nodes: list<string>

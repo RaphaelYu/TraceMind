@@ -49,7 +49,7 @@ tm dsl lint examples/dsl/opcua
 tm dsl plan examples/dsl/opcua --dot out/dsl_opcua.dot --json out/dsl_opcua.json
 ```
 
-These commands accept single files or directories. The helper script `scripts/validate_dsl_examples.sh` performs `lint`, `plan`, `compile`, and `run` on the bundled OPC-UA example; it auto-detects optional dependencies (such as `networkx`) and skips runtime execution gracefully on platforms without that module (common in Windows agents).
+These commands accept single files or directories. The helper script `scripts/validate_dsl_examples.sh` performs `lint`, `plan`, `compile`, `testgen`, `triggers validate`, and (when dependencies allow) `run` on the bundled OPC-UA example; it auto-detects optional dependencies (such as `networkx`) and skips the runtime execution gracefully on platforms without that module (common in Windows agents).
 
 ## `tm validate`
 

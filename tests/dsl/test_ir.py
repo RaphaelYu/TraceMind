@@ -48,6 +48,7 @@ def test_parse_wdl_document_success() -> None:
     assert workflow.version == "dsl/v0"
     assert workflow.name == "plant-monitor"
     assert len(workflow.inputs) == 2
+    assert workflow.triggers == ()
 
     read_step = workflow.steps[0]
     assert isinstance(read_step, WdlCallStep)
@@ -160,3 +161,31 @@ def test_parse_pdl_assignment_with_override() -> None:
     assert statement.statement_id == "set_action"
     assert statement.target == "action"
     assert statement.expression == "arms.baseline.default_action"
+
+
+def test_parse_wdl_with_triggers() -> None:
+    workflow = parse_wdl_document(
+        textwrap.dedent(
+            """
+        version: dsl/v0
+        workflow: triggered
+        triggers:
+          cron:
+            schedule: "* * * * *"
+          opcua:
+            endpoint: opc.tcp://localhost:4840
+            nodes: ["ns=2;i=2"]
+        steps:
+          - first(op.echo):
+              value: 1
+        """
+        )
+    )
+
+    assert len(workflow.triggers) == 2
+    cron_trigger = workflow.triggers[0]
+    assert cron_trigger.trigger_type == "cron"
+    assert cron_trigger.config.get("schedule") == "* * * * *"
+    opcua_trigger = workflow.triggers[1]
+    assert opcua_trigger.trigger_type == "opcua"
+    assert opcua_trigger.config.get("endpoint") == "opc.tcp://localhost:4840"

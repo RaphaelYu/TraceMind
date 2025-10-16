@@ -5,9 +5,11 @@ set -x
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PYTHON_BIN=${PYTHON:-python3}
 
-if ! "$PYTHON_BIN" -c "import networkx" >/dev/null 2>&1; then
-  echo "[validate_dsl_examples] networkx missing; skipping flow execution" >&2
-  exit 0
+if "$PYTHON_BIN" -c "import networkx" >/dev/null 2>&1; then
+  HAS_NETWORKX=1
+else
+  HAS_NETWORKX=0
+  echo "[validate_dsl_examples] networkx missing; flow execution will be skipped" >&2
 fi
 
 EXAMPLE_DIR="$ROOT/examples/dsl/opcua"
@@ -19,6 +21,8 @@ mkdir -p "$OUT_DIR"
 "$PYTHON_BIN" -m tm.cli dsl lint "$EXAMPLE_DIR"
 "$PYTHON_BIN" -m tm.cli dsl compile "$EXAMPLE_DIR" --out "$OUT_DIR" --force
 "$PYTHON_BIN" -m tm.cli dsl plan "$EXAMPLE_DIR" --dot "$OUT_DIR/plan.dot" --json "$OUT_DIR/plan.json"
+"$PYTHON_BIN" -m tm.cli dsl testgen "$EXAMPLE_DIR" --out "$OUT_DIR/fixtures" --max-cases 10 --json
+"$PYTHON_BIN" -m tm.cli triggers validate "$OUT_DIR/triggers.yaml"
 
 FLOW_FILE=$("$PYTHON_BIN" - <<'PY'
 import json

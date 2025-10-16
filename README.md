@@ -148,20 +148,30 @@ PY
 
 ### DSL Tooling (WDL / PDL)
 
-TraceMind ships a DSL layer for workflows (WDL) and policies (PDL). Install the optional extras once (`pip install networkx PyYAML`) and you can lint/compile directly from the repo:
+TraceMind ships a DSL layer for workflows (WDL) and policies (PDL). Install the optional extras once (`pip install networkx PyYAML`) and you can lint/plan/compile/testgen directly from the repo:
 
 ```bash
 # Lint individual files or directories
 python -m tm.cli dsl lint examples/dsl/opcua
 
-# Compile to runtime artifacts (writes out/flows + out/policies)
+# Compile to runtime artifacts (writes out/flows + out/policies + out/triggers.yaml)
 python -m tm.cli dsl compile examples/dsl/opcua --out out/dsl --force
+
+# Generate coverage fixtures (≥6 cases per workflow by default)
+python -m tm.cli dsl testgen examples/dsl/opcua --out examples/fixtures
+
+# Validate trigger configuration
+python -m tm.cli triggers validate out/dsl/triggers.yaml
+
+# Launch daemon with triggers (requires networkx / croniter)
+export TM_ENABLE_DAEMON=1
+python -m tm.cli daemon start --enable-triggers --triggers-config out/dsl/triggers.yaml --queue-dir tmp/queue --idempotency-dir tmp/idempotency --workers 1
 
 # Run the compiled flow with the example inputs
 python -m tm.cli run out/dsl/flows/plant-monitor.yaml -i '@examples/dsl/opcua/input.json'
 ```
 
-For CI-style smoke tests, use `scripts/validate_dsl_examples.sh` which performs the lint/compile/run loop end to end (it respects `$PYTHON` and checks for the `networkx` dependency). The generated artifacts carry source metadata so downstream tools can trace decisions back to DSL files.
+For CI-style smoke tests, use `scripts/validate_dsl_examples.sh` which performs the lint/plan/compile/testgen/run loop end to end (it respects `$PYTHON` and checks for optional dependencies such as `networkx`). The generated artifacts carry source metadata so downstream tools can trace decisions back to DSL files.
 
 ### Always-on Agent quickstart
 

@@ -12,6 +12,9 @@ from tm.dsl.compiler_policy import compile_policy
 WDL_SAMPLE = """
 version: dsl/v0
 workflow: plant-monitor
+triggers:
+  cron:
+    schedule: "* * * * *"
 inputs:
   endpoint: string
   nodes: list<string>
@@ -98,13 +101,15 @@ def test_compile_paths_produces_flow_and_policy(tmp_path: Path) -> None:
     artifacts = compile_paths([src_dir], out_dir=out_dir)
 
     kinds = {artifact.kind for artifact in artifacts}
-    assert kinds == {"flow", "policy"}
+    assert kinds == {"flow", "policy", "trigger"}
 
     flow_artifact = next(artifact for artifact in artifacts if artifact.kind == "flow")
     policy_artifact = next(artifact for artifact in artifacts if artifact.kind == "policy")
+    triggers_artifact = next(artifact for artifact in artifacts if artifact.kind == "trigger")
 
     assert flow_artifact.output.exists()
     assert policy_artifact.output.exists()
+    assert triggers_artifact.output.exists()
 
     import yaml  # type: ignore
 
@@ -112,3 +117,10 @@ def test_compile_paths_produces_flow_and_policy(tmp_path: Path) -> None:
     steps = flow_yaml["flow"]["steps"]
     call_step = next(step for step in steps if step["id"] == "decide")
     assert call_step["config"]["policy_ref"] == str(policy_artifact.output)
+
+    triggers_yaml = yaml.safe_load(triggers_artifact.output.read_text(encoding="utf-8"))
+    trigger_entries = triggers_yaml["triggers"]
+    assert trigger_entries
+    first_trigger = trigger_entries[0]
+    assert first_trigger["kind"] == "cron"
+    assert first_trigger["flow_id"] == flow_yaml["flow"]["id"]
