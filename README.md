@@ -11,10 +11,11 @@ TraceMind is a lightweight, event-sourced **autonomous agent runtime** that foll
 
 ---
 
-| Client + Server | Digital Twin | Autonomous Agent |
+| AI Guidance Layer | Formal Logic Core | Multi-Runtime Execution |
 | --- | --- | --- |
-| • Proxy / adapter<br>• SIP / WebSocket<br>• Hide protocol complexity | • Mirror of entity<br>• Presence + feedback<br>• IoT / telecom<br>• State visualisation<br>• Simulation / feedback | • Observer<br>• Executor<br>• Collaborator<br>• AI-driven autonomy<br>• Coordination in MAS |
-| **Value:** simplify access | **Value:** insight + control | **Value:** autonomy + learning |
+| Summarize / diagnose / plan with trace-linked context | Static DSL → Flow IR pipeline (lint, plan, compile) plus policy guards | PythonEngine for authoring parity; ProcessEngine bridges JSON-RPC runtimes (ROS / RTOS / simulators) |
+| Keeps humans and agents aligned around actionable insights | Offline verification catches structural and schema issues before deployment | Online verification via `tm runtime run` / `tm verify online` for smoke and device tests |
+| **Value:** shorten investigation + iteration | **Value:** predictable, auditable behaviour | **Value:** target-specific autonomy with observability |
 
 ---
 
@@ -57,26 +58,33 @@ TraceMind is a lightweight, event-sourced **autonomous agent runtime** that foll
 ## 📂 Architecture (ASCII Overview)
 
 ```
-                +----------------+
-                |   REST / CLI   |
-                +----------------+
-                         |
-                    [Commands]
-                         v
-                +----------------+
-                |  App Service   |
-                +----------------+
-                         |
-                  +------+------+
-                  |             |
-             [Event Store]   [Event Bus]
-                  |             |
-          +-------+        +----+-----------------+
-          |                |                      |
-     [Projections]   [Pipeline Engine]      [Smart Layer]
-                          |              (Summarize/Diagnose/Plan/Reflect)
-                          v
-                      [Trace Store]
+                +---------------------+
+                |  REST / CLI Clients |
+                +----------+----------+
+                           |
+                   [DSL / Policy Sources]
+                           |
+                 +---------v----------+
+                 |   Offline Verify   |
+                 | (lint/plan/compile)|
+                 +---------+----------+
+                           |
+                 +---------v----------+
+                 | Flow IR + Manifest |
+                 +----+---------+-----+
+                      |         |
+      +---------------+         +----------------+
+      |                         |                |
++-----v-----+         +---------v--------+     +-v----------------+
+|Event Store|<--------| PythonEngine DEV |     | ProcessEngine REP |
++-----+-----+         +------------------+     +---------+---------+
+      |                                          JSON-RPC Executors
+      |                                               (ROS / RTOS / Sim / HW)
+      v
++-----+-----+
+| Observability|
+|  & AI Layer  |
++-------------+
 ```
 
 ---
@@ -129,6 +137,9 @@ tm runtime run --manifest out/manifest.json --flow flows.hello
 # Execute the same IR via a JSON-RPC executor (mock ProcessEngine)
 tm --engine proc --executor-path tm/executors/mock_process_engine.py \
   runtime run --manifest out/manifest.json --flow flows.hello
+
+# One-shot online verification (recompile + run)
+tm verify online --flow flows.hello --sources flows/ --out out
 
 # Policy: list / verify / (optional) update
 python3 - <<'PY'

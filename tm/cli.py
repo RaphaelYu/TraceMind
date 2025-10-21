@@ -39,6 +39,7 @@ from tm.triggers.config import (
 )
 from tm.triggers.runner import run_triggers
 from tm.runtime import configure_engine, run_ir_flow, IrRunnerError
+from tm.dsl import compile_paths, CompileError
 from tm.runtime.config import RuntimeConfigError, load_runtime_config
 
 __path__ = [str(Path(__file__).with_name("cli"))]
@@ -353,6 +354,46 @@ def _build_parser() -> argparse.ArgumentParser:
         print(json.dumps(payload, indent=2))
         return 0 if result.status == "completed" else 1
 
+    def _cmd_verify_online(args):
+        manifest_path = Path(args.manifest)
+        if args.sources:
+            sources = [Path(src) for src in args.sources]
+            out_dir = Path(args.out) if args.out else manifest_path.parent
+            out_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                compile_paths(
+                    sources,
+                    out_dir=out_dir,
+                    force=args.force,
+                    run_lint=not args.no_lint,
+                    emit_ir=True,
+                )
+            except CompileError as exc:
+                print(f"verify: compilation failed: {exc}", file=sys.stderr)
+                return 1
+            manifest_path = out_dir / "manifest.json"
+
+        if not manifest_path.exists():
+            print(f"verify: manifest not found at {manifest_path}", file=sys.stderr)
+            return 1
+
+        inputs = _load_json_arg(getattr(args, "inputs", None), default={})
+        try:
+            result = run_ir_flow(args.flow, manifest_path=manifest_path, inputs=inputs)
+        except IrRunnerError as exc:
+            print(f"verify: runtime error: {exc}", file=sys.stderr)
+            return 1
+
+        payload = {
+            "flow": args.flow,
+            "manifest": str(manifest_path),
+            "status": result.status,
+            "summary": result.summary or {},
+            "events": list(result.events),
+        }
+        print(json.dumps(payload, indent=2))
+        return 0 if result.status == "completed" else 1
+
     sp_metrics = sub.add_parser("metrics", help="metrics tools")
     spm_sub = sp_metrics.add_subparsers(dest="mcmd")
     spm_dump = spm_sub.add_parser("dump", help="dump metrics window")
@@ -376,6 +417,37 @@ def _build_parser() -> argparse.ArgumentParser:
         help="JSON object with run inputs or @path to a JSON file",
     )
     runtime_run.set_defaults(func=_cmd_runtime_run_ir)
+
+    verify_parser = sub.add_parser("verify", help="Verification commands")
+    verify_sub = verify_parser.add_subparsers(dest="vcmd")
+
+    verify_online = verify_sub.add_parser(
+        "online",
+        help="Execute Flow IR with the configured runtime engine",
+        description="Use precompiled manifest/IR artifacts (or recompile sources) to verify a flow online.",
+    )
+    verify_online.add_argument("--flow", required=True, help="Flow name to execute")
+    verify_online.add_argument(
+        "--manifest",
+        default="out/dsl/manifest.json",
+        help="Path to manifest.json (default: out/dsl/manifest.json)",
+    )
+    verify_online.add_argument(
+        "--inputs",
+        help="JSON object with run inputs or @path to a JSON file",
+    )
+    verify_online.add_argument(
+        "--sources",
+        nargs="*",
+        help="Optional WDL/PDL sources or directories to compile before verification",
+    )
+    verify_online.add_argument(
+        "--out",
+        help="Output directory for compiled artifacts (defaults to manifest directory)",
+    )
+    verify_online.add_argument("--force", action="store_true", help="Overwrite existing artifacts on compile")
+    verify_online.add_argument("--no-lint", action="store_true", help="Skip linting before compilation")
+    verify_online.set_defaults(func=_cmd_verify_online)
 
     approve_parser = sub.add_parser("approve", help="manage human approvals")
     approve_parser.add_argument("--config", default="trace-mind.toml", help="governance config path")

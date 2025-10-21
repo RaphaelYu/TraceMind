@@ -65,6 +65,25 @@ tm --engine proc \
 Programmatic access is available via `tm.runtime.run_ir_flow(flow_name, manifest_path, inputs={})`
 which returns a `RunResult(status, state, events, summary)`.
 
+### Online Verification CLI
+
+`tm verify online` bundles the compilation (optional) and execution steps into a single command:
+
+```bash
+# Recompile sources before verification
+tm verify online --flow flows.hello --sources flows/ policies/ --out out/dsl
+
+# Use an existing manifest (defaults to out/dsl/manifest.json)
+tm verify online --flow flows.hello
+
+# Pass custom inputs and run via ProcessEngine
+tm --engine proc --executor-path tm/executors/mock_process_engine.py \
+  verify online --flow flows.hello --inputs '{"temperature": 72}'
+```
+
+The command prints a JSON summary (`flow`, `status`, `summary`, `events`) and exits non-zero when
+the run fails.
+
 ## 5. Mock Executor & REP Contract
 
 The mock executor (`tm/executors/mock_process_engine.py`) implements REP v0.1 and is used to
@@ -96,4 +115,3 @@ The ProcessEngine will validate capabilities and surface incompatible flows befo
 - IR runner + mock executor allow “what-you-see-is-what-you-get” testing across engines.
 - Future milestones can introduce additional transports (TCP, containers) without breaking the
 IR tooling or CLI ergonomics delivered in M0.
-

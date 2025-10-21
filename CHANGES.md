@@ -19,3 +19,11 @@
 - Plugin SDK + entry-point loader; example exporter
 - `tm plugin verify` minimal conformance
 - Quickstart docs link
+
+## 1.2.0 (2024-08-XX)
+- Added runtime engine abstraction (PythonEngine + ProcessEngine) with JSON-RPC executor support
+- `tm dsl compile --emit-ir` now emits Flow IR + manifest validated via JSON Schema
+- Introduced IR runner APIs and CLI (`tm runtime run`, `tm verify online`) for offline/online verification
+- Added mock ProcessEngine executor and contract tests for REP v0.1
+- Expanded documentation: runtime guide, README updates, architecture refresh
+- Added smoke tests covering IR execution via Python and process engines
