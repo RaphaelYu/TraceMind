@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
   "networkx>=3.2",
+  "jsonschema>=4.10",
 ]
 
 [project.scripts]

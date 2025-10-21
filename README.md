@@ -88,6 +88,7 @@ TraceMind is a lightweight, event-sourced **autonomous agent runtime** that foll
 - [Policy lifecycle & MCP integration](docs/policy.md)
 - [Storage configuration](docs/storage.md)
 - [Validation & simulation workflows](docs/validation.md)
+- [Runtime engines & IR runner](docs/runtime.md)
 
 ### Scale & Reliability
 
@@ -120,6 +121,14 @@ tm run flows/hello.yaml -i '{"name":"world"}'
 # Validate and export the flow graph
 mkdir -p out
 tm pipeline export-dot --out-rules-steps out/rules.dot --out-step-deps out/steps.dot
+
+# Compile to Flow IR and run smoke tests
+tm dsl compile flows/ --emit-ir --out out
+tm runtime run --manifest out/manifest.json --flow flows.hello
+
+# Execute the same IR via a JSON-RPC executor (mock ProcessEngine)
+tm --engine proc --executor-path tm/executors/mock_process_engine.py \
+  runtime run --manifest out/manifest.json --flow flows.hello
 
 # Policy: list / verify / (optional) update
 python3 - <<'PY'

@@ -54,8 +54,11 @@ from .evaluator import (
     load_policy,
     evaluate_policy,
 )
+from .runtime import Engine, PythonEngine
 
 __all__ = [
+    "Engine",
+    "PythonEngine",
     "DslParseError",
     "ParsedDocument",
     "parse_pdl",

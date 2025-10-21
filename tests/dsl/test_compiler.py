@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
-from tm.dsl import compile_paths, parse_pdl_document, parse_wdl_document
+from tm.dsl import CompileError, compile_paths, parse_pdl_document, parse_wdl_document
 from tm.dsl.compiler_flow import compile_workflow
 from tm.dsl.compiler_policy import compile_policy
 
@@ -124,3 +125,60 @@ def test_compile_paths_produces_flow_and_policy(tmp_path: Path) -> None:
     first_trigger = trigger_entries[0]
     assert first_trigger["kind"] == "cron"
     assert first_trigger["flow_id"] == flow_yaml["flow"]["id"]
+
+
+def test_compile_paths_emit_ir_outputs_manifest(tmp_path: Path) -> None:
+    pytest.importorskip("yaml")
+    src_dir = tmp_path / "dsl"
+    src_dir.mkdir()
+    (src_dir / "sample.wdl").write_text(WDL_SAMPLE.strip(), encoding="utf-8")
+    (src_dir / "sample.pdl").write_text(PDL_SAMPLE.strip(), encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    artifacts = compile_paths([src_dir], out_dir=out_dir, force=True, emit_ir=True)
+
+    kinds = {artifact.kind for artifact in artifacts}
+    assert {"flow", "policy", "trigger", "ir", "manifest"} <= kinds
+
+    ir_file = out_dir / "flows" / "plant-monitor.ir.json"
+    assert ir_file.exists()
+    ir_payload = json.loads(ir_file.read_text(encoding="utf-8"))
+    assert ir_payload["version"] == "1.0.0"
+    assert ir_payload["flow"]["name"] == "plant-monitor"
+    assert ir_payload["graph"]["nodes"]
+
+    manifest_path = out_dir / "manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert isinstance(manifest, list) and manifest
+    entry = manifest[0]
+    assert entry["ir_path"] == "flows/plant-monitor.ir.json"
+    assert "policyRef" in entry
+
+
+def test_compile_paths_ir_validation_failure(tmp_path: Path) -> None:
+    pytest.importorskip("yaml")
+    src_dir = tmp_path / "dsl"
+    src_dir.mkdir()
+    (src_dir / "sample.wdl").write_text(WDL_SAMPLE.strip(), encoding="utf-8")
+    (src_dir / "sample.pdl").write_text(PDL_SAMPLE.strip(), encoding="utf-8")
+
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"version": {"const": "0.0.0"}},
+        "required": ["version"],
+    }
+    schema_path = tmp_path / "schema.json"
+    schema_path.write_text(json.dumps(schema), encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    with pytest.raises(CompileError) as excinfo:
+        compile_paths(
+            [src_dir],
+            out_dir=out_dir,
+            force=True,
+            emit_ir=True,
+            ir_schema_path=schema_path,
+        )
+    assert "IR validation failed" in str(excinfo.value)

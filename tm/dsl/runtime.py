@@ -2,15 +2,54 @@ from __future__ import annotations
 
 import ast
 import random
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional, Protocol
 
-from .evaluator import EvaluationInput, evaluate_policy, load_policy as _load_policy_file, PolicyEvaluationError
-
-_POLICY_CACHE: Dict[str, Dict[str, Any]] = {}
+from .evaluator import EvaluationInput, PolicyEvaluationError, evaluate_policy, load_policy as _load_policy_file
 
 
-def call(ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+# ---------------------------------------------------------------------------
+# Engine abstraction
+# ---------------------------------------------------------------------------
+
+
+class Engine(Protocol):
+    """Executes compiled flows using a configured runtime backend."""
+
+    name: str
+
+    def run_step(self, ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]: ...
+
+
+@dataclass
+class PythonEngine:
+    """Reference engine that runs DSL call hooks inside the orchestrator."""
+
+    name: str = "python"
+    _policy_cache: Dict[str, Dict[str, Any]] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self._policy_cache is None:
+            self._policy_cache = {}
+
+    def run_step(self, ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        step_type = _resolve_step_type(ctx)
+        if step_type == "switch":
+            return switch(ctx, state)
+        if step_type == "emit":
+            return emit_outputs(ctx, state)
+        return call(ctx, state, policy_cache=self._policy_cache)
+
+
+# ---------------------------------------------------------------------------
+# Legacy step implementations (used by PythonEngine + backward compatibility)
+# ---------------------------------------------------------------------------
+
+
+def call(
+    ctx: Dict[str, Any], state: Dict[str, Any], *, policy_cache: Optional[Dict[str, Dict[str, Any]]] = None
+) -> Dict[str, Any]:
     state = _ensure_state(state)
     step_name = ctx.get("step")
     config = ctx.get("config", {})
@@ -27,7 +66,7 @@ def call(ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
     else:
         handler = _default_handler
 
-    result = handler(ctx, state, evaluated_args)
+    result = handler(ctx, state, evaluated_args, policy_cache=policy_cache)
     if not isinstance(result, dict):
         raise RuntimeError(f"Handler for '{target}' must return a dict")
     if isinstance(step_name, str):
@@ -37,7 +76,6 @@ def call(ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def switch(ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-    # Switch steps are evaluated by the runtime via edges; we just mirror state.
     state = _ensure_state(state)
     state["current"] = {"config": dict(ctx.get("config", {}))}
     return state
@@ -55,9 +93,22 @@ def emit_outputs(ctx: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
+def _resolve_step_type(ctx: Mapping[str, Any]) -> str:
+    kind = ctx.get("kind")
+    if kind == "switch":
+        return "switch"
+    config = ctx.get("config", {})
+    if isinstance(config, Mapping):
+        if "outputs" in config:
+            return "emit"
+    return "call"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
 def _ensure_state(state: Dict[str, Any]) -> Dict[str, Any]:
     if "steps" not in state or not isinstance(state.get("steps"), dict):
         inputs = dict(state)
@@ -98,7 +149,6 @@ def _evaluate_value(value: Any, state: Dict[str, Any]) -> Any:
 def _lookup_path(root: Any, dotted: str) -> Any:
     cur = root
     for part in dotted.split("."):
-
         if isinstance(cur, Mapping):
             cur = cur.get(part)
         else:
@@ -109,12 +159,14 @@ def _lookup_path(root: Any, dotted: str) -> Any:
 # ---------------------------------------------------------------------------
 # Call handlers
 # ---------------------------------------------------------------------------
-def _default_handler(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+
+
+def _default_handler(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any], **_: Any) -> Dict[str, Any]:
     target = ctx.get("config", {}).get("call", {}).get("target")
     return {"target": target, "args": args}
 
 
-def _handle_opcua_read(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_opcua_read(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any], **_: Any) -> Dict[str, Any]:
     endpoint = args.get("endpoint")
     node_ids = args.get("node_ids", [])
     values: Dict[str, Any] = {}
@@ -124,14 +176,20 @@ def _handle_opcua_read(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[st
     return {"endpoint": endpoint, "values": values}
 
 
-def _handle_opcua_write(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_opcua_write(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any], **_: Any) -> Dict[str, Any]:
     endpoint = args.get("endpoint")
     node_id = args.get("node_id")
     value = args.get("value")
     return {"endpoint": endpoint, "node_id": node_id, "value": value, "status": "ok"}
 
 
-def _handle_policy_apply(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+def _handle_policy_apply(
+    ctx: Dict[str, Any],
+    state: Dict[str, Any],
+    args: Dict[str, Any],
+    *,
+    policy_cache: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     config = ctx.get("config", {})
     policy_path = config.get("policy_ref")
     policy_id = config.get("policy_id")
@@ -139,7 +197,7 @@ def _handle_policy_apply(ctx: Dict[str, Any], state: Dict[str, Any], args: Dict[
     if not isinstance(values, Mapping):
         values = {}
     try:
-        policy = _load_policy(policy_path)
+        policy = _load_policy(policy_path, cache=policy_cache)
         result = evaluate_policy(
             policy,
             EvaluationInput(values=values, epsilon=None, random_func=random.random),
@@ -162,18 +220,23 @@ _HANDLERS = {
 }
 
 
-def _load_policy(path: Any) -> Dict[str, Any]:
+def _load_policy(path: Any, *, cache: Optional[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
     if not isinstance(path, str):
         raise RuntimeError("policy.apply step requires policy_ref path")
-    cached = _POLICY_CACHE.get(path)
+    store = cache if cache is not None else _POLICY_CACHE  # type: ignore[name-defined]
+    cached = store.get(path)
     if cached is None:
         resolved = Path(path)
         data = _load_policy_file(resolved)
         if not isinstance(data, dict):
             raise RuntimeError(f"Policy file '{path}' must contain an object")
-        _POLICY_CACHE[path] = data
+        store[path] = data
         cached = data
     return cached
 
 
-__all__ = ["call", "switch", "emit_outputs"]
+# Backward compatibility cache for module-level calls
+_POLICY_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+__all__ = ["Engine", "PythonEngine", "call", "switch", "emit_outputs"]

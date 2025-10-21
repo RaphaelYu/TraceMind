@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-mind.dev/schemas/ir/v0.1",
+  "title": "TraceMind Flow IR v1.0.0",
+  "type": "object",
+  "required": [
+    "version",
+    "flow",
+    "constants",
+    "inputs_schema",
+    "graph",
+    "metadata"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "const": "1.0.0"
+    },
+    "flow": {
+      "type": "object",
+      "required": ["name", "timeout_ms"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        }
+      },
+      "additionalProperties": false
+    },
+    "constants": {
+      "type": "object",
+      "required": ["policyRef", "policy"],
+      "properties": {
+        "policyRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inputs_schema": {
+      "type": "object"
+    },
+    "graph": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "with", "timeout_ms", "retry"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.-]+$"
+              },
+              "type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "with": {
+                "type": "object"
+              },
+              "timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "retry": {
+                "type": "object",
+                "required": ["max", "backoff_ms"],
+                "properties": {
+                  "max": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "backoff_ms": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from", "to", "on"],
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.-]+$"
+              },
+              "to": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.-]+$"
+              },
+              "on": {
+                "type": "string",
+                "enum": ["success", "failure"]
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["generated_at", "source_file"],
+      "properties": {
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_file": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

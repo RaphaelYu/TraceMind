@@ -7,6 +7,7 @@ import shutil
 import signal
 import sys
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -37,6 +38,8 @@ from tm.triggers.config import (
     load_trigger_config,
 )
 from tm.triggers.runner import run_triggers
+from tm.runtime import configure_engine, run_ir_flow, IrRunnerError
+from tm.runtime.config import RuntimeConfigError, load_runtime_config
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
@@ -273,6 +276,21 @@ def _build_hitl_manager(config_path: str) -> HitlManager:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tm", description="TraceMind CLI")
     parser.add_argument("--version", action="version", version=f"%(prog)s {_cli_version()}")
+    parser.add_argument(
+        "--runtime-config",
+        dest="runtime_config_path",
+        help="Path to runtime configuration (default: packaged runtime.yaml)",
+    )
+    parser.add_argument(
+        "--engine",
+        choices=["python", "proc"],
+        help="Override runtime engine for this invocation",
+    )
+    parser.add_argument(
+        "--executor-path",
+        dest="executor_path",
+        help="Path to process executor when using --engine proc",
+    )
     sub = parser.add_subparsers(dest="cmd")
 
     plugin_parser = sub.add_parser("plugin", help="plugin tools")
@@ -318,6 +336,23 @@ def _build_parser() -> argparse.ArgumentParser:
         else:
             print(json.dumps(entries, indent=2))
 
+    def _cmd_runtime_run_ir(args):
+        manifest_path = Path(args.manifest)
+        inputs = _load_json_arg(getattr(args, "inputs", None), default={})
+        try:
+            result = run_ir_flow(args.flow, manifest_path=manifest_path, inputs=inputs)
+        except IrRunnerError as exc:
+            print(f"runtime run failed: {exc}", file=sys.stderr)
+            return 1
+        payload = {
+            "flow": args.flow,
+            "status": result.status,
+            "summary": result.summary or {},
+            "events": list(result.events),
+        }
+        print(json.dumps(payload, indent=2))
+        return 0 if result.status == "completed" else 1
+
     sp_metrics = sub.add_parser("metrics", help="metrics tools")
     spm_sub = sp_metrics.add_subparsers(dest="mcmd")
     spm_dump = spm_sub.add_parser("dump", help="dump metrics window")
@@ -325,6 +360,22 @@ def _build_parser() -> argparse.ArgumentParser:
     spm_dump.add_argument("--window", default="5m", help="window size (e.g. 5m, 1h)")
     spm_dump.add_argument("--format", choices=["csv", "json"], default="csv")
     spm_dump.set_defaults(func=_cmd_metrics_dump)
+
+    runtime_parser = sub.add_parser("runtime", help="Runtime utilities")
+    runtime_sub = runtime_parser.add_subparsers(dest="rcmd")
+
+    runtime_run = runtime_sub.add_parser(
+        "run",
+        help="Execute a flow IR using the configured runtime engine",
+        description="Run a flow from manifest.json produced by `tm dsl compile --emit-ir`.",
+    )
+    runtime_run.add_argument("--manifest", required=True, help="Path to manifest.json")
+    runtime_run.add_argument("--flow", required=True, help="Flow name to execute")
+    runtime_run.add_argument(
+        "--inputs",
+        help="JSON object with run inputs or @path to a JSON file",
+    )
+    runtime_run.set_defaults(func=_cmd_runtime_run_ir)
 
     approve_parser = sub.add_parser("approve", help="manage human approvals")
     approve_parser.add_argument("--config", default="trace-mind.toml", help="governance config path")
@@ -1255,6 +1306,29 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    try:
+        config_path = Path(args.runtime_config_path).expanduser() if args.runtime_config_path else None
+        runtime_cfg = load_runtime_config(config_path)
+        engine_override = args.engine
+        executor_override = args.executor_path
+        if engine_override or executor_override:
+            executor_path = runtime_cfg.executor_path
+            if executor_override:
+                executor_path = Path(executor_override).expanduser()
+            runtime_cfg = replace(
+                runtime_cfg,
+                engine=engine_override or runtime_cfg.engine,
+                executor_path=executor_path,
+            )
+        configure_engine(runtime_cfg)
+        setattr(args, "_runtime_config", runtime_cfg)
+    except RuntimeConfigError as exc:
+        print(f"runtime configuration error: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"runtime configuration error: {exc}", file=sys.stderr)
+        return 1
+
     if hasattr(args, "func"):
         result = args.func(args)
         if isinstance(result, int):

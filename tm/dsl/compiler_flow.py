@@ -38,6 +38,7 @@ class FlowCompilation:
     data: Dict[str, object]
     source: Optional[Path]
     step_sources: Dict[str, SourceSpan]
+    workflow: WdlWorkflow
 
 
 class _FlowBuilder:
@@ -91,6 +92,7 @@ class _FlowBuilder:
             data=flow,
             source=self.source,
             step_sources=dict(self._step_sources),
+            workflow=self.workflow,
         )
 
     def _compile_sequence(self, steps: Sequence[WdlStep]) -> SequenceGraph:

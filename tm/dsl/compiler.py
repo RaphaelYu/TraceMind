@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Optional, Sequence
+
+from ._jsonschema import Draft202012Validator
 
 try:
     import yaml  # type: ignore[import-untyped]
@@ -12,9 +15,10 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
     yaml = None  # type: ignore[assignment]
 
 from .compiler_flow import FlowCompilation, FlowCompileError, compile_workflow
-from .compiler_policy import PolicyCompileError, compile_policy
+from .compiler_policy import PolicyCompilation, PolicyCompileError, compile_policy
 from .ir import WdlTrigger, parse_pdl_document, parse_wdl_document
 from .lint import lint_paths
+from .ir_emit import build_flow_ir, IrEmissionError
 
 
 class CompileError(RuntimeError):
@@ -35,6 +39,8 @@ def compile_paths(
     out_dir: Path,
     force: bool = False,
     run_lint: bool = True,
+    emit_ir: bool = False,
+    ir_schema_path: Optional[Path] = None,
 ) -> List[CompiledArtifact]:
     files = tuple(_discover_files(paths))
     if not files:
@@ -54,20 +60,23 @@ def compile_paths(
     policies_dir.mkdir(parents=True, exist_ok=True)
 
     policy_map: dict[str, CompiledArtifact] = {}
+    policy_compilations: dict[Path, PolicyCompilation] = {}
     artifacts: List[CompiledArtifact] = []
     trigger_entries: List[dict[str, object]] = []
     used_trigger_ids: set[str] = set()
+    flow_results: list[tuple[CompiledArtifact, FlowCompilation]] = []
 
     # Compile policies first so flows can reference them.
     for path in files:
         if path.suffix.lower() == ".pdl":
-            artifact = _compile_pdl(path, policies_dir, force=force)
+            artifact, compilation = _compile_pdl(path, policies_dir, force=force)
             policy_map[path.stem] = artifact
+            policy_compilations[artifact.output.resolve()] = compilation
             artifacts.append(artifact)
 
     for path in files:
         if path.suffix.lower() == ".wdl":
-            artifact = _compile_wdl(
+            artifact, compilation = _compile_wdl(
                 path,
                 flows_dir,
                 policy_map=policy_map,
@@ -75,6 +84,7 @@ def compile_paths(
                 trigger_entries=trigger_entries,
                 used_trigger_ids=used_trigger_ids,
             )
+            flow_results.append((artifact, compilation))
             artifacts.append(artifact)
 
     if trigger_entries:
@@ -90,6 +100,54 @@ def compile_paths(
                 output=triggers_path,
             )
         )
+
+    if emit_ir:
+        schema = _load_ir_schema(ir_schema_path)
+        validator = Draft202012Validator(schema) if schema is not None else None
+        generated_at = datetime.now(timezone.utc)
+        manifest_entries: List[dict[str, object]] = []
+        ir_artifacts: List[CompiledArtifact] = []
+
+        for artifact, compilation in flow_results:
+            try:
+                result = build_flow_ir(compilation, policy_resolver=policy_compilations, generated_at=generated_at)
+            except IrEmissionError as exc:
+                raise CompileError(f"{artifact.source or compilation.flow_id}: {exc}") from exc
+
+            ir_name = f"{_slugify(compilation.flow_id)}.ir.json"
+            ir_path = flows_dir / ir_name
+            if ir_path.exists() and not force:
+                raise CompileError(f"Output file '{ir_path}' already exists (use --force to overwrite)")
+            _write_json(ir_path, result.ir)
+
+            if validator is not None:
+                _validate_ir_payload(validator, result.ir, compilation.flow_id)
+
+            relative_ir = ir_path.relative_to(out_dir)
+            result.manifest_entry["ir_path"] = relative_ir.as_posix()
+            manifest_entries.append(result.manifest_entry)
+            ir_artifacts.append(
+                CompiledArtifact(
+                    source=artifact.source or compilation.source or out_dir,
+                    kind="ir",
+                    identifier=compilation.flow_id,
+                    output=ir_path,
+                )
+            )
+
+        manifest_path = out_dir / "manifest.json"
+        if manifest_path.exists() and not force:
+            raise CompileError(f"Output file '{manifest_path}' already exists (use --force to overwrite)")
+        _write_json(manifest_path, manifest_entries)
+        artifacts.append(
+            CompiledArtifact(
+                source=out_dir,
+                kind="manifest",
+                identifier="flows",
+                output=manifest_path,
+            )
+        )
+        artifacts.extend(ir_artifacts)
 
     return artifacts
 
@@ -115,7 +173,7 @@ def _compile_wdl(
     force: bool,
     trigger_entries: List[dict[str, object]],
     used_trigger_ids: set[str],
-) -> CompiledArtifact:
+) -> tuple[CompiledArtifact, FlowCompilation]:
     try:
         workflow = parse_wdl_document(path.read_text(encoding="utf-8"), filename=str(path))
         compilation = compile_workflow(workflow, source=path)
@@ -132,10 +190,11 @@ def _compile_wdl(
     if output_path.exists() and not force:
         raise CompileError(f"Output file '{output_path}' already exists (use --force to overwrite)")
     _write_yaml(output_path, compilation.data)
-    return CompiledArtifact(source=path, kind="flow", identifier=compilation.flow_id, output=output_path)
+    artifact = CompiledArtifact(source=path, kind="flow", identifier=compilation.flow_id, output=output_path)
+    return artifact, compilation
 
 
-def _compile_pdl(path: Path, out_dir: Path, *, force: bool) -> CompiledArtifact:
+def _compile_pdl(path: Path, out_dir: Path, *, force: bool) -> tuple[CompiledArtifact, PolicyCompilation]:
     try:
         policy = parse_pdl_document(path.read_text(encoding="utf-8"), filename=str(path))
         compilation = compile_policy(policy, source=path)
@@ -148,7 +207,8 @@ def _compile_pdl(path: Path, out_dir: Path, *, force: bool) -> CompiledArtifact:
     if output_path.exists() and not force:
         raise CompileError(f"Output file '{output_path}' already exists (use --force to overwrite)")
     output_path.write_text(json.dumps(compilation.data, indent=2), encoding="utf-8")
-    return CompiledArtifact(source=path, kind="policy", identifier=compilation.policy_id, output=output_path)
+    artifact = CompiledArtifact(source=path, kind="policy", identifier=compilation.policy_id, output=output_path)
+    return artifact, compilation
 
 
 def _write_yaml(path: Path, data: object) -> None:
@@ -156,6 +216,10 @@ def _write_yaml(path: Path, data: object) -> None:
         raise CompileError("PyYAML is required to write flow YAML. Install the 'yaml' extra.")
     with path.open("w", encoding="utf-8") as fh:
         yaml.safe_dump(data, fh, sort_keys=False)
+
+
+def _write_json(path: Path, data: object) -> None:
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def _slugify(name: str) -> str:
@@ -198,6 +262,30 @@ def _collect_triggers(
         if entry is not None:
             entries.append(entry)
     return entries
+
+
+def _load_ir_schema(schema_path: Optional[Path]) -> Optional[dict]:
+    path = schema_path
+    if path is None:
+        path = Path(__file__).resolve().parents[2] / "docs" / "ir" / "v0.1" / "schema.json"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise CompileError(f"IR schema not found at {path}") from exc
+    except OSError as exc:
+        raise CompileError(f"Unable to read IR schema at {path}: {exc}") from exc
+    return json.loads(text)
+
+
+def _validate_ir_payload(validator: Draft202012Validator, payload: dict, flow_id: str) -> None:
+    errors = sorted(validator.iter_errors(payload), key=lambda err: err.path)
+    if not errors:
+        return
+    messages = []
+    for error in errors:
+        pointer = "/" + "/".join(str(part) for part in error.absolute_path)
+        messages.append(f"{pointer}: {error.message}")
+    raise CompileError(f"IR validation failed for flow '{flow_id}':\n" + "\n".join(messages))
 
 
 def _trigger_to_config(

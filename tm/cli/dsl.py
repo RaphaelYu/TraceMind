@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Iterable, Sequence, List, Tuple
@@ -46,6 +47,16 @@ def _register_compile(subparsers: argparse._SubParsersAction[argparse.ArgumentPa
     parser.add_argument("--json", dest="json_output", action="store_true", help="Emit machine-readable JSON")
     parser.add_argument("--force", action="store_true", help="Overwrite existing artifacts")
     parser.add_argument("--no-lint", action="store_true", help="Skip linting before compilation")
+    parser.add_argument("--emit-ir", action="store_true", help="Emit Flow IR artifacts and manifest.json")
+    parser.add_argument(
+        "--clean", action="store_true", help="Remove previously generated IR artifacts before compiling"
+    )
+    parser.add_argument(
+        "--clean-all",
+        action="store_true",
+        help="Remove the entire output directory before compiling (requires --yes)",
+    )
+    parser.add_argument("--yes", action="store_true", help="Confirm destructive clean operations")
     parser.set_defaults(func=_cmd_compile)
 
 
@@ -109,12 +120,21 @@ def _cmd_lint(args: argparse.Namespace) -> None:
 def _cmd_compile(args: argparse.Namespace) -> None:
     candidate_paths = [Path(p) for p in args.paths]
     out_dir = Path(args.out)
+    if args.clean_all:
+        if not args.yes:
+            print("--clean-all requires --yes confirmation", file=sys.stderr)
+            sys.exit(1)
+        _rm_tree(out_dir)
+    elif args.clean:
+        _clean_ir_outputs(out_dir)
+
     try:
         artifacts = compile_paths(
             candidate_paths,
             out_dir=out_dir,
             force=args.force,
             run_lint=not args.no_lint,
+            emit_ir=args.emit_ir,
         )
     except CompileError as exc:
         print(str(exc), file=sys.stderr)
@@ -123,6 +143,40 @@ def _cmd_compile(args: argparse.Namespace) -> None:
         _print_compile_json(artifacts)
     else:
         _print_compile_text(artifacts, out_dir)
+
+
+def _rm_tree(path: Path) -> None:
+    try:
+        if path.exists():
+            shutil.rmtree(path)
+    except OSError as exc:
+        print(f"Failed to remove {path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _clean_ir_outputs(out_dir: Path) -> None:
+    flows_dir = out_dir / "flows"
+    if flows_dir.exists():
+        for ir_path in flows_dir.glob("*.ir.json"):
+            try:
+                ir_path.unlink()
+            except OSError as exc:
+                print(f"Failed to remove {ir_path}: {exc}", file=sys.stderr)
+                sys.exit(1)
+    manifest_path = out_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest_path.unlink()
+        except OSError as exc:
+            print(f"Failed to remove {manifest_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+    cache_dir = out_dir / ".ir-cache"
+    if cache_dir.exists():
+        try:
+            shutil.rmtree(cache_dir)
+        except OSError as exc:
+            print(f"Failed to remove {cache_dir}: {exc}", file=sys.stderr)
+            sys.exit(1)
 
 
 def _cmd_plan(args: argparse.Namespace) -> None:
