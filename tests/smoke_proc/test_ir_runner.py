@@ -17,25 +17,23 @@ from tm.runtime.config import load_runtime_config
 WDL_SAMPLE = """
 version: dsl/v0
 workflow: sample
-inputs:
-  value: string
 steps:
-  - echo(opcua.read):
-      endpoint: $input.value
+  - decide(policy.apply):
+      values:
+        temperature: 72
   - emit(dsl.emit):
-      decision:
-        status: "ok"
+      decision: $step.decide
 outputs:
-  result: $step.emit
+  result: $step.decide
 """
 
 PDL_SAMPLE = """
 version: pdl/v0
 arms:
   default:
-    static_action: PASS
+    action_on_violation: PASS
 evaluate:
-  action = arms.default.static_action
+  action = arms.default.action_on_violation
 emit:
   action: action
 """
@@ -54,7 +52,7 @@ def compiled_ir(tmp_path: Path) -> Path:
 
 def test_run_ir_with_python_engine(compiled_ir: Path) -> None:
     configure_runtime_engine(load_runtime_config())
-    result = run_ir_flow("sample", manifest_path=compiled_ir, inputs={"value": "demo"}, engine=PythonEngine())
+    result = run_ir_flow("sample", manifest_path=compiled_ir, inputs={}, engine=PythonEngine())
     assert result.status == "completed"
 
 
@@ -62,7 +60,7 @@ def test_run_ir_with_process_engine(compiled_ir: Path) -> None:
     executor = Path(__file__).resolve().parents[2] / "tm" / "executors" / "mock_process_engine.py"
     options = ProcessEngineOptions(executor_path=executor)
     engine = ProcessEngine(options)
-    result = run_ir_flow("sample", manifest_path=compiled_ir, inputs={"value": "demo"}, engine=engine)
+    result = run_ir_flow("sample", manifest_path=compiled_ir, inputs={}, engine=engine)
     assert result.status == "completed"
 
 
