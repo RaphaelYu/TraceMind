@@ -49,7 +49,7 @@ def run(ctx: Mapping[str, Any], state: Any) -> Any:
 
 
 try:  # pragma: no cover - optional auto-registration
-    from tm.steps.registry import register_step  # type: ignore
+    from tm.steps.registry import register_step
 
     register_step(STEP_NAME, run)
 except Exception:  # pragma: no cover

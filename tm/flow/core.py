@@ -289,31 +289,33 @@ class StaticAnalyzer:
                     issues.append({"kind": "unreachable", "node": n, "msg": f"Node '{n}' is not reachable from entry"})
         # 3) operator existence & node sanity
         for n, data in g.nodes(data=True):
-            step: Step = data.get("step")
-            if step.kind == NodeKind.TASK:
+            step_obj = data.get("step")
+            if not isinstance(step_obj, Step):
+                continue
+            if step_obj.kind == NodeKind.TASK and step_obj.uses is not None:
                 try:
-                    self.registry.get(step.uses)
+                    self.registry.get(step_obj.uses)
                 except KeyError:
-                    issues.append({"kind": "operator_missing", "node": n, "op": step.uses})
-            if step.kind == NodeKind.SWITCH:
+                    issues.append({"kind": "operator_missing", "node": n, "op": step_obj.uses})
+            if step_obj.kind == NodeKind.SWITCH:
                 succ = list(g.successors(n))
                 if not succ:
                     issues.append({"kind": "switch_no_branch", "node": n})
                 has_default = any(
-                    g.get_edge_data(n, s, {}).get("case") == step.cfg.get("default", "_DEFAULT") for s in succ
+                    g.get_edge_data(n, s, {}).get("case") == step_obj.cfg.get("default", "_DEFAULT") for s in succ
                 )
                 if not has_default:
                     issues.append({"kind": "switch_no_default", "node": n, "msg": "Consider adding default branch"})
-            if step.kind == NodeKind.PARALLEL:
-                uses = step.cfg.get("uses", [])
+            if step_obj.kind == NodeKind.PARALLEL:
+                uses = step_obj.cfg.get("uses", [])
                 if not uses:
                     issues.append({"kind": "parallel_empty", "node": n})
         # 4) basic data race within a PARALLEL block (write/write or read/write)
         for n, data in g.nodes(data=True):
-            step: Step = data.get("step")
-            if step.kind != NodeKind.PARALLEL:
+            step_obj = data.get("step")
+            if not isinstance(step_obj, Step) or step_obj.kind != NodeKind.PARALLEL:
                 continue
-            uses = list(step.cfg.get("uses", []))
+            uses = [u for u in list(step_obj.cfg.get("uses", [])) if isinstance(u, str)]
             metas = [(u, self.registry.meta(u)) for u in uses]
             for i in range(len(metas)):
                 ui, mi = metas[i]
@@ -427,19 +429,34 @@ class StepPolicies:
 
 
 def _parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
-    r = cfg.get("retry", {})
+    r_raw = cfg.get("retry", {})
+    r = r_raw if isinstance(r_raw, dict) else {}
     t = cfg.get("timeout_ms", None)
-    if isinstance(cfg.get("timeout"), dict):
-        t = cfg["timeout"].get("timeout_ms", t)
+    timeout_cfg = cfg.get("timeout")
+    if isinstance(timeout_cfg, dict):
+        t = timeout_cfg.get("timeout_ms", t)
     return StepPolicies(
         retry=RetryPolicy(
-            max_attempts=int(r.get("max_attempts", 1)),
-            backoff_ms=int(r.get("backoff_ms", 0)),
+            max_attempts=_as_int(r.get("max_attempts"), default=1),
+            backoff_ms=_as_int(r.get("backoff_ms"), default=0),
         ),
         timeout=TimeoutPolicy(
-            timeout_ms=None if t in (None, "", 0) else int(t),
+            timeout_ms=None if t in (None, "", 0) else _as_int(t, default=0),
         ),
     )
+
+
+def _as_int(value: Any, *, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 class Engine:
@@ -448,11 +465,11 @@ class Engine:
 
     # ---------------- internal helpers ----------------
     @staticmethod
-    def _get_path(root: Dict[str, Any], dotted: str) -> Any:
+    def _get_path(root: Dict[str, Any], dotted: Any) -> Any:
         """Very small JSONPath-lite: $.vars.*, $.inputs.*, $.cfg.*"""
-        if not dotted or not dotted.startswith("$"):
+        if not isinstance(dotted, str) or not dotted.startswith("$"):
             return dotted
-        cur = {"vars": root.get("vars", {}), "inputs": root.get("inputs", {}), "cfg": root.get("cfg", {})}
+        cur: Any = {"vars": root.get("vars", {}), "inputs": root.get("inputs", {}), "cfg": root.get("cfg", {})}
         parts = dotted.lstrip("$").lstrip(".").split(".")
         cur = cur.get(parts[0], {}) if parts else {}
         for p in parts[1:]:
@@ -515,6 +532,8 @@ class Engine:
                 pol = _parse_policies_from_cfg(step.cfg)
                 try:
                     self._run_checks(step.cfg.get("before"), ctx, call_in)
+                    if not isinstance(step.uses, str):
+                        raise ValueError("Task step is missing operator 'uses'")
                     out = self._run_operator(step.uses, ctx, call_in, pol)
                     self._run_checks(step.cfg.get("after"), ctx, {"**out": out, **call_in})
                     res = StepResult(status="ok", output=out, duration_ms=(time.time() - t0) * 1000)
@@ -555,8 +574,9 @@ class Engine:
             elif step.kind is NodeKind.PARALLEL:
                 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-                uses = list(step.cfg.get("uses", []))
-                max_workers = int(step.cfg.get("max_workers", 4))
+                uses_raw = step.cfg.get("uses", [])
+                uses = [u for u in uses_raw if isinstance(u, str)]
+                max_workers = _as_int(step.cfg.get("max_workers"), default=4)
                 call_in_base = {"inputs": inputs, "cfg": step.cfg, "vars": ctx.vars}
                 pol = _parse_policies_from_cfg(step.cfg)
                 outputs: Dict[str, Any] = {}
@@ -588,11 +608,11 @@ class Engine:
                 break
 
             # move to next (single successor semantics except SWITCH)
-            succ = flow.successors(current)
-            if not succ:
+            next_nodes: List[str] = flow.successors(current)
+            if not next_nodes:
                 self.tracer.end(run_id, "ok")
                 break
-            current = succ[0]
+            current = next_nodes[0]
 
         return run_id, ctx.vars
 

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import ssl
+import socket
 import time
 import urllib.parse
 from contextlib import suppress
@@ -136,10 +137,10 @@ def _build_event(
             "timestamp": context["timestamp"],
         },
     )
-    headers = {
-        "trigger_id": config.id,
-        "trigger_kind": config.kind,
-        "trigger_event": context["event_id"],
+    headers: dict[str, str] = {
+        "trigger_id": str(config.id),
+        "trigger_kind": str(config.kind),
+        "trigger_event": str(context["event_id"]),
     }
     if extra_headers:
         headers.update(extra_headers)
@@ -148,7 +149,7 @@ def _build_event(
         kind=config.kind,
         flow_id=config.flow_id,
         payload=payload,
-        headers=headers,
+        headers=dict(headers),
         idempotency_key=config.idempotency_key,
     )
 
@@ -278,7 +279,11 @@ def _build_webhook_servers(
         ssl_context = None
         if use_tls:
             ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ssl_context.load_cert_chain(cfgs[0].tls_certfile, cfgs[0].tls_keyfile)
+            certfile = cfgs[0].tls_certfile
+            keyfile = cfgs[0].tls_keyfile
+            if certfile is None or keyfile is None:
+                raise ValueError("TLS enabled but certfile/keyfile not provided")
+            ssl_context.load_cert_chain(certfile, keyfile)
         servers.append(_WebhookServer(host, port, ssl_context, cfgs, handler))
     return servers
 
@@ -314,7 +319,7 @@ class _WebhookServer(_BaseAdapter):
             port=self._port,
             ssl=self._ssl_context,
         )
-        sockets = self._server.sockets or []
+        sockets: list[socket.socket] = list(self._server.sockets or [])
         if sockets:
             bound = sockets[0].getsockname()
             LOGGER.info("webhook listening on %s:%s", bound[0], bound[1])

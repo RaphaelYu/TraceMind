@@ -12,7 +12,7 @@ from ._jsonschema import Draft202012Validator
 try:
     import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    yaml = None  # type: ignore[assignment]
+    yaml = None
 
 from .compiler_flow import FlowCompilation, FlowCompileError, compile_workflow
 from .compiler_policy import PolicyCompilation, PolicyCompileError, compile_policy
@@ -69,14 +69,14 @@ def compile_paths(
     # Compile policies first so flows can reference them.
     for path in files:
         if path.suffix.lower() == ".pdl":
-            artifact, compilation = _compile_pdl(path, policies_dir, force=force)
+            artifact, policy_compiled = _compile_pdl(path, policies_dir, force=force)
             policy_map[path.stem] = artifact
-            policy_compilations[artifact.output.resolve()] = compilation
+            policy_compilations[artifact.output.resolve()] = policy_compiled
             artifacts.append(artifact)
 
     for path in files:
         if path.suffix.lower() == ".wdl":
-            artifact, compilation = _compile_wdl(
+            artifact, flow_compiled = _compile_wdl(
                 path,
                 flows_dir,
                 policy_map=policy_map,
@@ -84,7 +84,7 @@ def compile_paths(
                 trigger_entries=trigger_entries,
                 used_trigger_ids=used_trigger_ids,
             )
-            flow_results.append((artifact, compilation))
+            flow_results.append((artifact, flow_compiled))
             artifacts.append(artifact)
 
     if trigger_entries:
@@ -355,12 +355,12 @@ def _map_trigger_fields(
             raise CompileError(
                 f"{source_path}:{trigger.location.line}:{trigger.location.column}: cron trigger requires 'schedule'"
             )
-        entry = {"cron": cron_expr.strip()}
+        cron_entry: dict[str, object] = {"cron": cron_expr.strip()}
         timezone = config.pop("timezone", None)
         if isinstance(timezone, str) and timezone.strip():
-            entry["timezone"] = timezone.strip()
-        entry.update(config)
-        return entry
+            cron_entry["timezone"] = timezone.strip()
+        cron_entry.update(config)
+        return cron_entry
 
     if kind == "webhook":
         route = config.pop("route", config.pop("path", None))
@@ -369,11 +369,13 @@ def _map_trigger_fields(
                 f"{source_path}:{trigger.location.line}:{trigger.location.column}: webhook trigger requires 'route'"
             )
         method = config.pop("method", "POST")
-        if isinstance(method, str):
-            method = method.upper()
-        entry = {"route": route, "method": method}
-        entry.update(config)
-        return entry
+        if not isinstance(method, str):
+            raise CompileError(
+                f"{source_path}:{trigger.location.line}:{trigger.location.column}: webhook method must be a string"
+            )
+        webhook_entry: dict[str, object] = {"route": route, "method": method.upper()}
+        webhook_entry.update(config)
+        return webhook_entry
 
     if kind == "filesystem":
         path_value = config.pop("path", None)
@@ -381,9 +383,9 @@ def _map_trigger_fields(
             raise CompileError(
                 f"{source_path}:{trigger.location.line}:{trigger.location.column}: filesystem trigger requires 'path'"
             )
-        entry = {"path": path_value}
-        entry.update(config)
-        return entry
+        filesystem_entry: dict[str, object] = {"path": path_value}
+        filesystem_entry.update(config)
+        return filesystem_entry
 
     return config
 

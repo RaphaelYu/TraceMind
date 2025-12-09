@@ -7,6 +7,7 @@ from contextlib import suppress
 from .config import TriggerConfigSet, load_trigger_config
 from .manager import TriggerManager
 from .queue import TriggerQueueDispatcher
+from typing import Callable
 
 
 class TriggerRuntime:
@@ -70,7 +71,7 @@ def run_triggers(
         loop.close()
 
 
-def _install_signal_handlers(stop: callable) -> None:
+def _install_signal_handlers(stop: Callable[[], None]) -> None:
     for sig_name in ("SIGINT", "SIGTERM"):
         sig = getattr(signal, sig_name, None)
         if sig is None:  # pragma: no cover - platform specific

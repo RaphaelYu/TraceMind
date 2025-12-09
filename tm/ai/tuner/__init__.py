@@ -54,7 +54,7 @@ class BanditTuner:
             raise ValueError("candidates must be a non-empty iterable")
         async with self._lock:
             strategy = self._ensure_strategy(binding)
-            arms = {arm: {} for arm in arm_list}
+            arms: Dict[str, Dict[str, Any]] = {arm: {} for arm in arm_list}
             choice = strategy.select(binding, binding, arms, ctx)
             if choice not in arms:
                 raise ValueError(f"Strategy selected unknown arm '{choice}'")

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Mapping, Optional, Protocol
+from typing import Callable, Dict, Mapping, Optional, Protocol, Union
 
-from tm.obs.counters import Registry
+from tm.obs.counters import Registry, _MetricsProxy
 from tm.obs import counters
 
 metrics = counters.metrics
+RegistryLike = Union[Registry, _MetricsProxy]
 
 
 class Exporter(Protocol):
     """Interface implemented by metric exporters."""
 
-    def start(self, registry: Registry) -> None:
+    def start(self, registry: RegistryLike) -> None:
         """Begin exporting using the provided registry."""
 
     def stop(self) -> None:
@@ -23,7 +24,7 @@ class Exporter(Protocol):
         """Export a single snapshot immediately."""
 
 
-ExporterFactory = Callable[[Registry], Optional[Exporter]]
+ExporterFactory = Callable[[RegistryLike], Optional[Exporter]]
 
 _FACTORIES: Dict[str, ExporterFactory] = {}
 

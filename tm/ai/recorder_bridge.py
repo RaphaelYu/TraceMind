@@ -5,12 +5,12 @@ We avoid hard dependency on tm.recorder. If it's present and exports
 """
 
 from __future__ import annotations
-from typing import Optional
+from typing import Callable, Optional
 
 try:
-    from tm.recorder import record_llm_usage as _real_record_llm_usage  # type: ignore
+    from tm.recorder import record_llm_usage as _real_record_llm_usage
 except Exception:  # pragma: no cover
-    _real_record_llm_usage = None  # type: ignore
+    _real_record_llm_usage = None
 
 
 def record_llm_usage(
@@ -22,10 +22,11 @@ def record_llm_usage(
     step_id: Optional[str] = None,
     meta: Optional[dict] = None,
 ) -> None:
-    if _real_record_llm_usage is None:
+    recorder: Optional[Callable[..., None]] = _real_record_llm_usage
+    if recorder is None:
         return
     try:
-        _real_record_llm_usage(provider=provider, model=model, usage=usage, flow_id=flow_id, step_id=step_id, meta=meta)
+        recorder(provider=provider, model=model, usage=usage, flow_id=flow_id, step_id=step_id, meta=meta)
     except Exception:
         # Recorder must never break the call path
         pass

@@ -7,34 +7,52 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 
-from tm.obs.counters import Registry
+from tm.obs.counters import Registry, _MetricsProxy
 from tm.obs import counters
 
 
 def _flatten_snapshot(snapshot: Dict[str, Dict[str, object]]) -> List[Dict[str, object]]:
     entries: List[Dict[str, object]] = []
     for metric_type, named_metrics in snapshot.items():
+        if not isinstance(named_metrics, dict):
+            continue
         if metric_type == "histograms":
             for name, buckets in named_metrics.items():
+                if not isinstance(buckets, dict):
+                    continue
                 for label_key, bucket_list in buckets.items():
+                    if not isinstance(label_key, Iterable):
+                        continue
                     base_labels = dict(label_key)
+                    if not isinstance(bucket_list, Iterable):
+                        continue
                     for bucket in bucket_list:
+                        count = getattr(bucket, "count", None)
+                        if count is None:
+                            continue
                         labels = dict(base_labels)
-                        labels["le"] = str(bucket.le)
+                        labels["le"] = str(getattr(bucket, "le", ""))
                         entries.append(
                             {
                                 "type": "hist",
                                 "name": name,
                                 "labels": labels,
-                                "value": bucket.count,
+                                "value": count,
                             }
                         )
         else:
             metric_kind = "counter" if metric_type == "counters" else "gauge"
             for name, samples in named_metrics.items():
-                for label_key, value in samples:
+                if not isinstance(samples, Iterable):
+                    continue
+                for sample in samples:
+                    if not isinstance(sample, tuple) or len(sample) != 2:
+                        continue
+                    label_key, value = sample
+                    if not isinstance(label_key, Iterable):
+                        continue
                     entries.append(
                         {
                             "type": metric_kind,
@@ -51,7 +69,7 @@ class FileExporter:
 
     def __init__(
         self,
-        registry: Registry,
+        registry: Registry | _MetricsProxy,
         *,
         dir_path: str,
         fmt: str = "ndjson",
@@ -66,7 +84,7 @@ class FileExporter:
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
 
-    def start(self, registry: Optional[Registry] = None) -> None:
+    def start(self, registry: Optional[Registry | _MetricsProxy] = None) -> None:
         if registry is not None:
             self._registry = registry
         if self._thread and self._thread.is_alive():
@@ -116,8 +134,10 @@ class FileExporter:
             # csv format with simple schema: type,name,labels,value
             lines = []
             for entry in entries:
-                label_str = ";".join(f"{k}={v}" for k, v in sorted(entry["labels"].items()))
-                lines.append(f"{entry['type']},{entry['name']},{label_str},{entry['value']}")
+                labels_obj = entry.get("labels", {})
+                labels_dict = labels_obj if isinstance(labels_obj, dict) else {}
+                label_str = ";".join(f"{k}={v}" for k, v in sorted(labels_dict.items()))
+                lines.append(f"{entry.get('type')},{entry.get('name')},{label_str},{entry.get('value')}")
             with open(filename, "a", encoding="utf-8") as fh:
                 if os.path.getsize(filename) == 0:
                     fh.write("type,name,labels,value\n")
@@ -131,7 +151,7 @@ class FileExporter:
 
 def maybe_enable_from_env(
     env: Optional[Dict[str, str]] = None,
-    registry: Optional[Registry] = None,
+    registry: Optional[Registry | _MetricsProxy] = None,
 ) -> Optional[FileExporter]:
     env_map = env or os.environ
     dir_path = env_map.get("TRACE_METRICS_FILE_DIR")

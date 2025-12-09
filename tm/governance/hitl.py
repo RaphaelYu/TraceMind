@@ -277,9 +277,10 @@ class HitlManager:
             approval_id = entry.get("approval_id")
             if not isinstance(approval_id, str):
                 return
-            record = self._pending.get(approval_id)
-            if record is None:
+            record_opt = self._pending.get(approval_id)
+            if record_opt is None:
                 return
+            record = record_opt
             decision = str(entry.get("decision", "deny"))
             record.status = decision
             record.decided_by = str(entry.get("actor", "unknown"))

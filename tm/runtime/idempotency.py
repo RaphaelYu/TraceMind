@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
 try:
-    import fcntl  # type: ignore[attr-defined]
+    import fcntl
 except ImportError:  # pragma: no cover - Windows fallback
-    fcntl = None  # type: ignore
+    fcntl = None  # type: ignore[assignment]
 
 
 @dataclass

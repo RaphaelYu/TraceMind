@@ -87,7 +87,8 @@ def restart_crashloop(namespace: str, pod_name: str) -> FlowSpec:
 
 def _build_pod_request(namespace: str, label_selector: Optional[str]):
     def _inner(ctx: Dict[str, object]) -> Dict[str, object]:
-        params = dict(ctx.get("request", {}))
+        req_cfg = ctx.get("request")
+        params: Dict[str, object] = dict(req_cfg) if isinstance(req_cfg, dict) else {}
         params.update({"namespace": namespace})
         if label_selector:
             params["label_selector"] = label_selector
@@ -98,15 +99,18 @@ def _build_pod_request(namespace: str, label_selector: Optional[str]):
 
 
 def _fetch_pods(ctx: Dict[str, object]) -> Dict[str, object]:
-    clients = ctx.get("clients") or {}
-    client: K8sClient = clients.get("k8s")  # type: ignore[assignment]
+    clients_val = ctx.get("clients")
+    clients: Dict[str, object] = clients_val if isinstance(clients_val, dict) else {}
+    client_obj = clients.get("k8s")
+    client: K8sClient | None = client_obj if isinstance(client_obj, K8sClient) else None
     if client is None:
         raise ValueError("K8s client missing in ctx['clients']['k8s']")
-    request_cfg = ctx.get("request", {})
-    namespace = request_cfg.get("namespace")
+    request_cfg = ctx.get("request")
+    request_map: Dict[str, object] = request_cfg if isinstance(request_cfg, dict) else {}
+    namespace = request_map.get("namespace")
     if not isinstance(namespace, str):
         raise ValueError("Namespace is required in ctx['request']['namespace']")
-    label_selector = request_cfg.get("label_selector")
+    label_selector = request_map.get("label_selector")
     pods = client.get_pods(namespace, label_selector if isinstance(label_selector, str) else None)
     ctx["result"] = pods
     return ctx
@@ -121,13 +125,16 @@ def _build_restart_request(namespace: str, pod_name: str):
 
 
 def _restart_pod(ctx: Dict[str, object]) -> Dict[str, object]:
-    clients = ctx.get("clients") or {}
-    client: K8sClient = clients.get("k8s")  # type: ignore[assignment]
+    clients_val = ctx.get("clients")
+    clients: Dict[str, object] = clients_val if isinstance(clients_val, dict) else {}
+    client_obj = clients.get("k8s")
+    client: K8sClient | None = client_obj if isinstance(client_obj, K8sClient) else None
     if client is None:
         raise ValueError("K8s client missing in ctx['clients']['k8s']")
-    cfg = ctx.get("request", {})
-    namespace = cfg.get("namespace")
-    pod = cfg.get("pod")
+    cfg = ctx.get("request")
+    cfg_map: Dict[str, object] = cfg if isinstance(cfg, dict) else {}
+    namespace = cfg_map.get("namespace")
+    pod = cfg_map.get("pod")
     if not isinstance(namespace, str) or not isinstance(pod, str):
         raise ValueError("Namespace and pod name required in ctx['request']")
     client.delete_pod(namespace, pod)
@@ -136,7 +143,8 @@ def _restart_pod(ctx: Dict[str, object]) -> Dict[str, object]:
 
 
 def _signal_ready(ctx: Dict[str, object]) -> Dict[str, object]:
-    hub: CorrelationHub = ctx.get("correlator")  # type: ignore[assignment]
+    correlator_val = ctx.get("correlator")
+    hub: CorrelationHub | None = correlator_val if isinstance(correlator_val, CorrelationHub) else None
     if hub is None:
         raise ValueError("correlator must be provided in ctx['correlator']")
     req_id = ctx.get("req_id")

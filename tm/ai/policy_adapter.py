@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Awaitable, Callable, Dict, Mapping, Optional, Sequence, Tuple, cast
 from urllib import request
 
 from tm.flow.runtime import FlowRunRecord
@@ -111,8 +111,9 @@ def _execute_request(req: request.Request, timeout: float) -> str:
 
 async def _maybe_await(result: Awaitable[Dict[str, Any]] | Dict[str, Any]) -> Dict[str, Any]:
     if asyncio.iscoroutine(result):
-        return await result
-    return result
+        awaited = await result
+        return awaited
+    return cast(Dict[str, Any], result)
 
 
 class PolicyAdapter:
@@ -157,7 +158,10 @@ class McpPolicyAdapter(PolicyAdapter):
         if not binding_meta or not _is_mcp_endpoint(binding_meta.endpoint):
             return PolicyDecision(arms=list(local_candidates), remote_version=None, fallback=True)
 
-        tool = _parse_tool(binding_meta.endpoint)
+        endpoint = binding_meta.endpoint
+        if not isinstance(endpoint, str):
+            return PolicyDecision(arms=list(local_candidates), remote_version=None, fallback=True)
+        tool = _parse_tool(endpoint)
         try:
             remote_version = await self._fetch_policy(
                 binding_key, tool, binding_meta, local_candidates, context, local_version
@@ -174,7 +178,10 @@ class McpPolicyAdapter(PolicyAdapter):
         binding_meta = self._bindings.get(record.binding)
         if not binding_meta or not _is_mcp_endpoint(binding_meta.endpoint):
             return
-        tool = _parse_tool(binding_meta.endpoint)
+        endpoint = binding_meta.endpoint
+        if not isinstance(endpoint, str):
+            return
+        tool = _parse_tool(endpoint)
         payload = {
             "binding": record.binding,
             "policy_ref": binding_meta.policy_ref,

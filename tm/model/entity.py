@@ -17,13 +17,13 @@ class Entity:
     partial: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
-        data = {
+        data: Dict[str, Any] = {
             "model": self.spec.name,
             "id": self.identity,
             "attributes": dict(self.attributes),
         }
         if self.meta is not None:
             data["meta"] = dict(self.meta)
-        if self.partial:
+        if bool(self.partial):
             data["partial"] = True
         return data

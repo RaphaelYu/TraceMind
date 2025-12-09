@@ -52,7 +52,7 @@ class OpenAIProvider(Provider):
             raise LlmError("PROVIDER_ERROR", "No transport configured for OpenAIProvider")
 
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
         }
@@ -78,7 +78,7 @@ class OpenAIProvider(Provider):
             raise LlmError("PROVIDER_ERROR", f"unexpected response shape: {e}")
 
         price = self.pricing.get(model)
-        cost = None
+        cost: Optional[float] = None
         if price is not None:
             cost = (pt * price.in_per_million + ct * price.out_per_million) / 1_000_000.0
 

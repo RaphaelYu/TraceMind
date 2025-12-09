@@ -7,14 +7,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Mapping, Optional
 
 try:  # pragma: no cover - platform dependent import
-    import fcntl  # type: ignore[attr-defined]
+    import fcntl
 except ModuleNotFoundError:  # pragma: no cover - windows fallback
-    fcntl = None  # type: ignore[attr-defined]
+    fcntl = None  # type: ignore[assignment]
 
 try:  # pragma: no cover - windows specific
-    import msvcrt  # type: ignore[attr-defined]
+    import msvcrt
 except ModuleNotFoundError:  # pragma: no cover - non-windows
-    msvcrt = None  # type: ignore[attr-defined]
+    msvcrt = None  # type: ignore[assignment]
 
 from tm.runtime.queue.file import FileWorkQueue
 
@@ -284,7 +284,7 @@ class _FileLock:
 
     def __init__(self, path: str) -> None:
         self._path = path
-        self._fh = None
+        self._fh: Optional[Any] = None
 
     def __enter__(self) -> "_FileLock":
         directory = os.path.dirname(self._path)
@@ -300,7 +300,7 @@ class _FileLock:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
-        if not self._fh:
+        if self._fh is None:
             return
         fh = self._fh
         self._fh = None

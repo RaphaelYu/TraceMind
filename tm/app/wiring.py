@@ -83,7 +83,7 @@ def _diff_json(old: Any, new: Any, path: Path = ()) -> List[Tuple[Path, str, Any
     return changes
 
 
-def _on_event(ev: object) -> None:
+def _on_event(ev: Any) -> None:
     if ev.__class__.__name__ != "ObjectUpserted":
         return
     key = f"{ev.kind}:{ev.obj_id}"
@@ -122,23 +122,23 @@ _active_exporters: list[Any] = []
 if "prometheus" in requested:
     mount_prometheus(app, counters.metrics)
 if "file" in requested:
-    exporter = maybe_enable_file_exporter()
-    if exporter:
-        _active_exporters.append(exporter)
+    file_exporter = maybe_enable_file_exporter()
+    if file_exporter:
+        _active_exporters.append(file_exporter)
 if "binlog" in requested:
-    exporter = maybe_enable_binlog_exporter()
-    if exporter:
-        _active_exporters.append(exporter)
+    binlog_exporter = maybe_enable_binlog_exporter()
+    if binlog_exporter:
+        _active_exporters.append(binlog_exporter)
 
 custom_names = requested.difference({"prometheus", "file", "binlog"})
 for name in custom_names:
     factory = get_exporter_factory(name)
     if not factory:
         continue
-    exporter = factory(counters.metrics)
-    if exporter:
-        exporter.start(counters.metrics)
-        _active_exporters.append(exporter)
+    exporter_instance = factory(counters.metrics)
+    if exporter_instance:
+        exporter_instance.start(counters.metrics)
+        _active_exporters.append(exporter_instance)
 
 
 __all__ = ["PLAN", "pipe", "_diff_json"]

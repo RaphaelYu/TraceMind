@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 from fastapi import APIRouter, HTTPException
 
 from pathlib import Path
 
 from tm.flow.runtime import FlowRuntime
+from tm.flow.flow import Flow
 from tm.flow.operations import ResponseMode
 from tm.flow.policies import FlowPolicies
 from tm.flow.trace_store import FlowTraceSink
@@ -42,8 +43,8 @@ class _SpecFlow:
         return self.spec_obj
 
 
-def _load_flows() -> Dict[str, object]:
-    flows: Dict[str, object] = build_flows()
+def _load_flows() -> Dict[str, Flow]:
+    flows: Dict[str, Flow] = cast(Dict[str, Flow], build_flows())
 
     recipe_specs = [
         pod_health_check(namespace="default", label_selector="app=demo"),

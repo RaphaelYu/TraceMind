@@ -51,7 +51,7 @@ class StopDaemonResult:
     reason: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        payload = {
+        payload: Dict[str, Any] = {
             "pid": self.pid,
             "stopped": self.stopped,
             "forced": self.forced,
@@ -222,17 +222,20 @@ def _force_kill(pid: int) -> bool:
             pass
     if os.name == "nt":  # pragma: no cover - exercised in Windows CI
         try:
-            import ctypes  # type: ignore
+            import ctypes
 
             PROCESS_TERMINATE = 0x0001
-            handle = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+            windll = getattr(ctypes, "windll", None)
+            if windll is None:
+                return False
+            handle = windll.kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
             if not handle:
                 return False
             try:
-                result = ctypes.windll.kernel32.TerminateProcess(handle, 1)
+                result = windll.kernel32.TerminateProcess(handle, 1)
                 return bool(result)
             finally:
-                ctypes.windll.kernel32.CloseHandle(handle)
+                windll.kernel32.CloseHandle(handle)
         except Exception:
             return False
     return False

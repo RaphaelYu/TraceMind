@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional
 
 try:
-    import yaml  # type: ignore
+    import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover - optional
-    yaml = None  # type: ignore
+    yaml = None
 
 from .tuner import BanditTuner
 

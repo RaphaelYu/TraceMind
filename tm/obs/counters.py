@@ -23,7 +23,7 @@ class _MetricBase:
         self.help = help or ""
         self._lock = threading.RLock()
 
-    def _with_lock(self, fn):  # type: ignore[no-untyped-def]
+    def _with_lock(self, fn):
         with self._lock:
             return fn()
 

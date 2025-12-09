@@ -6,14 +6,7 @@ import inspect
 import logging
 from typing import Any, Dict, Mapping, MutableMapping, Optional, Protocol, Sequence
 
-try:  # pragma: no cover - optional dependency shim
-    from tm.flow.operations import ResponseMode
-except ModuleNotFoundError:  # pragma: no cover
-    from enum import Enum
-
-    class ResponseMode(Enum):  # type: ignore[redefinition]
-        IMMEDIATE = "immediate"
-        DEFERRED = "deferred"
+from tm.flow.operations import ResponseMode
 
 
 from tm.ai.hooks import DecisionHook, NullDecisionHook
@@ -30,8 +23,10 @@ class RuntimeLike(Protocol):  # pragma: no cover - structural typing helper
     async def run(
         self,
         name: str,
+        *,
         inputs: Optional[Mapping[str, Any]] = None,
         response_mode: Optional[ResponseMode] = None,
+        ctx: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]: ...
 
 
@@ -171,7 +166,7 @@ class OperationRouter:
 def _matching_flows(spec: BindingSpec, operation: Operation, ctx: Mapping[str, Any]) -> Sequence[str]:
     specific: list[str] = []
     fallback: list[str] = []
-    for rule in getattr(spec, "_rules", ()):  # type: ignore[attr-defined]
+    for rule in getattr(spec, "_rules", ()):
         if rule.matches(operation, ctx):
             if getattr(rule, "predicate", None) is None:
                 fallback.append(rule.flow_name)
@@ -181,7 +176,7 @@ def _matching_flows(spec: BindingSpec, operation: Operation, ctx: Mapping[str, A
         return specific
     if fallback:
         return fallback
-    flow = spec.resolve(operation, ctx)
+    flow = spec.resolve(operation, dict(ctx))
     if flow is not None:
         return [flow]
     return []

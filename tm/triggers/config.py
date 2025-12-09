@@ -8,9 +8,9 @@ from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
 
 try:  # optional dependency
-    import yaml  # type: ignore
+    import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover - optional path
-    yaml = None  # type: ignore
+    yaml = None
 
 
 class TriggerConfigError(Exception):

@@ -9,9 +9,9 @@ from textwrap import dedent
 from typing import Dict, Mapping, Optional
 
 try:
-    import tomllib  # type: ignore[attr-defined]
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib
 
 PROJECT_CONFIG: Dict[str, Dict[str, object]] = {
     "runtime": {
@@ -85,7 +85,8 @@ def init_project(
     project_root.mkdir(parents=True, exist_ok=True)
 
     config = _clone_config()
-    exporters = list(config["observability"].get("exporters", []))
+    exporters_obj = config["observability"].get("exporters", [])
+    exporters = list(exporters_obj) if isinstance(exporters_obj, list) else []
     if with_prom and "prom" not in exporters:
         exporters.append("prom")
     config["observability"]["exporters"] = exporters
@@ -164,14 +165,23 @@ def _load_project(root: Path | None) -> ProjectContext:
 
 
 def _clone_config() -> Dict[str, Dict[str, object]]:
-    return {
-        section: {key: (value[:] if isinstance(value, list) else value) for key, value in fields.items()}
-        for section, fields in PROJECT_CONFIG.items()
-    }
+    cloned: Dict[str, Dict[str, object]] = {}
+    for section, fields in PROJECT_CONFIG.items():
+        section_copy: Dict[str, object] = {}
+        for key, value in fields.items():
+            if isinstance(value, list):
+                section_copy[key] = list(value)
+            elif isinstance(value, dict):
+                section_copy[key] = dict(value)
+            else:
+                section_copy[key] = value
+        cloned[section] = section_copy
+    return cloned
 
 
 def _render_config(config: Mapping[str, Mapping[str, object]]) -> str:
-    exporters = config["observability"].get("exporters", [])
+    exporters_obj = config["observability"].get("exporters", [])
+    exporters = exporters_obj if isinstance(exporters_obj, list) else []
     exporters_repr = ", ".join(f'"{value}"' for value in exporters)
     lines = [
         "[runtime]",

@@ -104,52 +104,52 @@ class GovernanceManager:
 
         breaker_handles: List[BreakerReservation] = []
         if self._breaker_enabled:
-            for key, settings in self._breaker_scopes(request):
-                state = self._ensure_breaker_state(key, settings)
-                decision = state.breaker.can_execute(now=now)
+            for breaker_key, settings in self._breaker_scopes(request):
+                breaker_state = self._ensure_breaker_state(breaker_key, settings)
+                decision = breaker_state.breaker.can_execute(now=now)
                 if not decision.allowed:
-                    self._record_breaker_reject(key, decision.state)
+                    self._record_breaker_reject(breaker_key, decision.state)
                     self._release_breakers(breaker_handles)
                     return GovernanceDecision(
                         False,
                         error_code=decision.reason or "CIRCUIT_OPEN",
-                        scope=_format_breaker_scope(key),
+                        scope=_format_breaker_scope(breaker_key),
                     )
-                breaker_handles.append(BreakerReservation(key=key, breaker=state.breaker))
+                breaker_handles.append(BreakerReservation(key=breaker_key, breaker=breaker_state.breaker))
 
         reservations: List[LimitReservation] = []
         if self._limits_enabled:
-            for key, settings in self._limit_scopes(request):
-                state = self._ensure_limit_state(key, settings)
+            for limit_key, limit_settings in self._limit_scopes(request):
+                limit_state = self._ensure_limit_state(limit_key, limit_settings)
 
-                rate_decision = state.rate.check_and_reserve(now=now)
+                rate_decision = limit_state.rate.check_and_reserve(now=now)
                 if not rate_decision.allowed:
-                    self._record_rate_reject(key)
+                    self._record_rate_reject(limit_key)
                     self._rollback_limits(reservations)
                     self._release_breakers(breaker_handles)
                     return GovernanceDecision(
                         False,
                         error_code=rate_decision.reason or "RATE_LIMITED",
-                        scope=_format_limit_scope(key),
+                        scope=_format_limit_scope(limit_key),
                     )
 
-                budget_decision = state.budget.can_accept(now=now)
+                budget_decision = limit_state.budget.can_accept(now=now)
                 if not budget_decision.allowed:
-                    state.rate.cancel_pending()
+                    limit_state.rate.cancel_pending()
                     self._rollback_limits(reservations)
                     self._release_breakers(breaker_handles)
                     meta: Dict[str, object] = {}
                     if budget_decision.kind:
                         meta["budget_kind"] = budget_decision.kind
-                    self._record_budget_reject(key, budget_decision.kind)
+                    self._record_budget_reject(limit_key, budget_decision.kind)
                     return GovernanceDecision(
                         False,
                         error_code=budget_decision.reason or "BUDGET_EXCEEDED",
-                        scope=_format_limit_scope(key),
+                        scope=_format_limit_scope(limit_key),
                         meta=meta,
                     )
 
-                reservations.append(LimitReservation(key=key, rate=state.rate, budget=state.budget))
+                reservations.append(LimitReservation(key=limit_key, rate=limit_state.rate, budget=limit_state.budget))
 
         return GovernanceDecision(
             True,

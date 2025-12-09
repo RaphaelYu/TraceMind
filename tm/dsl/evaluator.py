@@ -255,7 +255,7 @@ def _select_active_arm(arms: Any) -> Any:
     if isinstance(arms, Mapping):
         if "default" in arms:
             return _namespace(arms["default"])
-        first_value = next(iter(arms.values()), {})
+        first_value: Any = next(iter(arms.values()), {})
         return _namespace(first_value)
     return _namespace({})
 

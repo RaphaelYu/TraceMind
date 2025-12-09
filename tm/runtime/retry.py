@@ -9,7 +9,7 @@ from typing import Any, Dict, Mapping, Optional
 try:
     import tomllib  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - fallback
-    import tomli as tomllib  # type: ignore
+    import tomli as tomllib
 
 
 @dataclass(frozen=True)

@@ -29,14 +29,22 @@ def export_flow_artifact(spec: FlowSpec, out_dir: str | Path) -> FlowArtifact:
 
     inspector = FlowInspector(spec)
     payload = inspector.export_json()
-    nodes = [
-        {
-            "name": step["name"],
-            "step_id": step.get("step_id"),
-            "operation": step.get("operation"),
-        }
-        for step in payload.get("steps", [])
-    ]
+    nodes: list[dict[str, object]] = []
+    steps_obj = payload.get("steps")
+    if isinstance(steps_obj, list):
+        for step in steps_obj:
+            if not isinstance(step, dict):
+                continue
+            name = step.get("name")
+            if not isinstance(name, str):
+                continue
+            nodes.append(
+                {
+                    "name": name,
+                    "step_id": step.get("step_id"),
+                    "operation": step.get("operation"),
+                }
+            )
     edges = _edges(spec)
 
     artifact = {

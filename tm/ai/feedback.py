@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, Literal, Mapping, Optional
+from typing import Dict, Literal, Mapping, Optional, cast
 
 import math
 
@@ -23,11 +23,12 @@ class FeedbackEvent:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, object], *, default_outcome: Outcome = "error") -> "FeedbackEvent":
-        outcome = str(payload.get("outcome") or default_outcome).lower()
-        if outcome not in {"ok", "error", "rejected"}:
-            outcome = default_outcome
+        outcome_str = str(payload.get("outcome") or default_outcome).lower()
+        if outcome_str not in {"ok", "error", "rejected"}:
+            outcome_str = default_outcome
+        outcome = cast(Outcome, outcome_str)
         return cls(
-            outcome=outcome,  # type: ignore[arg-type]
+            outcome=outcome,
             duration_ms=_coerce_float(payload.get("duration_ms")),
             cost_usd=_coerce_float(payload.get("cost_usd")),
             user_rating=_coerce_float(payload.get("user_rating")),
@@ -109,10 +110,12 @@ def _coerce_float(value: object) -> Optional[float]:
         return None
     if isinstance(value, bool):
         return 1.0 if value else 0.0
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 __all__ = ["FeedbackEvent", "Outcome", "reward"]

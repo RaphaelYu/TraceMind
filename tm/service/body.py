@@ -6,14 +6,7 @@ from collections.abc import MutableMapping
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-try:  # pragma: no cover - optional dependency shim
-    from tm.flow.operations import ResponseMode
-except ModuleNotFoundError:  # pragma: no cover
-    from enum import Enum
-
-    class ResponseMode(Enum):  # type: ignore[redefinition]
-        IMMEDIATE = "immediate"
-        DEFERRED = "deferred"
+from tm.flow.operations import ResponseMode
 
 
 from tm.model.entity import Entity

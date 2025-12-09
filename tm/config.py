@@ -7,7 +7,7 @@ from typing import Optional
 @dataclass
 class Config:
     data_dir: str = os.getenv("DATA_DIR", "./data")
-    log_dir: str = os.getenv("LOG_DIR", None)  # default computed from data_dir
+    log_dir: Optional[str] = os.environ.get("LOG_DIR")  # default computed from data_dir
     batch_max: int = int(os.getenv("BATCH_MAX", "2000"))
     batch_ms: float = float(os.getenv("BATCH_MS", "0.006"))  # 6ms
     fsync_ms: float = float(os.getenv("FSYNC_MS", "0.050"))  # 50ms

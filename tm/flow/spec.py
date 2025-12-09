@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Iterable, Mapping, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, Iterator, Mapping, Optional, Tuple
 
 from .operations import Operation
 
@@ -58,7 +58,7 @@ class FlowSpec:
     def adjacency(self) -> Dict[str, Tuple[str, ...]]:
         return {name: step.next_steps for name, step in self.steps.items()}
 
-    def __iter__(self) -> Iterable[StepDef]:
+    def __iter__(self) -> Iterator[StepDef]:
         return iter(self.steps.values())
 
     def __post_init__(self) -> None:

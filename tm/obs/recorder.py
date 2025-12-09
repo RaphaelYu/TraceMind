@@ -6,14 +6,14 @@ import os
 from dataclasses import dataclass, field
 from typing import ClassVar, Optional
 
-from .counters import Registry
+from .counters import Registry, _MetricsProxy
 from . import counters
 from tm.kstore import DEFAULT_KSTORE_URL, KStore, open_kstore
 
 
 @dataclass
 class Recorder:
-    _registry: Registry = counters.metrics
+    _registry: Registry | _MetricsProxy = counters.metrics
     _kstore: KStore | None = field(default=None, repr=False)
     _default: ClassVar[Optional["Recorder"]] = None
 

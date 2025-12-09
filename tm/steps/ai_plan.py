@@ -321,7 +321,7 @@ async def run(params: dict[str, Any], *, flow_id: Optional[str] = None, step_id:
 
 
 try:  # pragma: no cover - optional auto-registration
-    from tm.steps.registry import register_step  # type: ignore
+    from tm.steps.registry import register_step
 
     register_step(STEP_NAME, run)
 except Exception:

@@ -51,7 +51,7 @@ def _load_thresholds_from_env() -> Thresholds:
             values[field_name] = int(raw)
         except ValueError:
             raise SystemExit(f"invalid integer for {env_name}: {raw!r}")
-    return Thresholds(**values)  # type: ignore[arg-type]
+    return Thresholds(**values)
 
 
 def _expand_patterns(patterns: Sequence[str]) -> Tuple[Path, ...]:
@@ -176,10 +176,14 @@ def _analyze_flow(path: Path, thresholds: Thresholds) -> FlowAnalysis:
     )
 
 
-def _issue_dict(issue) -> Dict[str, object]:
+def _issue_dict(issue: ValidationIssue | Dict[str, object]) -> Dict[str, object]:
     if isinstance(issue, dict):
-        payload = issue.copy()
-        payload["level"] = issue["level"].value  # type: ignore[index]
+        payload = dict(issue)
+        level = payload.get("level")
+        if isinstance(level, IssueLevel):
+            payload["level"] = level.value
+        elif level is not None:
+            payload["level"] = str(level)
         return payload
     return {
         "level": issue.level.value,
@@ -212,8 +216,10 @@ def cmd_flow_lint(args) -> int:
                 print(f" (node={issue.node})")
             else:
                 print()
-        for issue in analysis.threshold_issues:
-            print(f"  - [{issue['level'].value}] {issue['code']}: {issue['message']}")
+        for threshold_issue in analysis.threshold_issues:
+            level = threshold_issue.get("level")
+            level_str = level.value if isinstance(level, IssueLevel) else str(level)
+            print(f"  - [{level_str}] {threshold_issue.get('code')}: {threshold_issue.get('message')}")
         if analysis.plan_result:
             stats = analysis.plan_result.stats
             print(
@@ -228,15 +234,15 @@ def cmd_flow_plan(args) -> int:
     files = _expand_patterns(args.paths)
     analyses = [_analyze_flow(path, thresholds) for path in files]
 
-    payload = []
+    payload: list[Dict[str, object]] = []
     exit_code = 0
     for analysis in analyses:
         issues = [_issue_dict(issue) for issue in analysis.validation_issues]
         issues.extend(_issue_dict(issue) for issue in analysis.threshold_issues)
-        if any(issue["level"] == "error" for issue in issues):
+        if any(issue.get("level") == "error" for issue in issues):
             exit_code = 1
-        stats_dict = None
-        layers = None
+        stats_dict: Dict[str, int] | None = None
+        layers: list[list[str]] | None = None
         if analysis.plan_result:
             stats_dict = {
                 "nodes": analysis.plan_result.stats.nodes,
@@ -248,35 +254,45 @@ def cmd_flow_plan(args) -> int:
         payload.append(
             {
                 "path": str(analysis.path),
-                "issues": sorted(issues, key=lambda issue: (issue["level"], issue["code"], issue.get("node", ""))),
+                "issues": sorted(
+                    issues,
+                    key=lambda issue: (
+                        str(issue.get("level", "")),
+                        str(issue.get("code", "")),
+                        str(issue.get("node", "")),
+                    ),
+                ),
                 "stats": stats_dict,
                 "layers": layers,
             }
         )
 
-    payload.sort(key=lambda item: item["path"])
+    payload.sort(key=lambda item: str(item["path"]))
 
     if args.json:
         print(json.dumps({"flows": payload}, indent=2, sort_keys=True))
     else:
         for entry in payload:
-            path = entry["path"]
-            issues = entry["issues"]
-            stats = entry["stats"]
+            path = str(entry["path"])
+            issues_obj = entry.get("issues", [])
+            issues_list = issues_obj if isinstance(issues_obj, list) else []
+            stats_obj = entry.get("stats")
+            stats_dict = stats_obj if isinstance(stats_obj, dict) else None
             status = "ok"
-            if any(issue["level"] == "error" for issue in issues):
+            if any(issue.get("level") == "error" for issue in issues_list if isinstance(issue, dict)):
                 status = "error"
-            elif issues:
+            elif issues_list:
                 status = "warn"
             print(f"{path}: {status}")
-            if stats:
+            if stats_dict:
                 print(
-                    f"  stats: nodes={stats['nodes']} depth={stats['depth']} "
-                    f"max_width={stats['max_width']} max_out_degree={stats['max_out_degree']}"
+                    f"  stats: nodes={stats_dict.get('nodes')} depth={stats_dict.get('depth')} "
+                    f"max_width={stats_dict.get('max_width')} max_out_degree={stats_dict.get('max_out_degree')}"
                 )
-            for issue in issues:
-                suffix = f" (node={issue['node']})" if issue.get("node") else ""
-                print(f"  - [{issue['level']}] {issue['code']}: {issue['message']}{suffix}")
+            for issue in issues_list:
+                issue_dict = issue if isinstance(issue, dict) else {}
+                suffix = f" (node={issue_dict.get('node')})" if issue_dict.get("node") else ""
+                print(f"  - [{issue_dict.get('level')}] {issue_dict.get('code')}: {issue_dict.get('message')}{suffix}")
 
     return exit_code
 

@@ -45,16 +45,31 @@ def parse_policies_from_cfg(cfg: Dict[str, Any]) -> StepPolicies:
       - retry={"max_attempts": N, "backoff_ms": M}
       - timeout_ms=...  OR  timeout={"timeout_ms": ...}
     """
-    r = cfg.get("retry", {})
+    r_raw = cfg.get("retry", {})
+    r = r_raw if isinstance(r_raw, dict) else {}
     t = cfg.get("timeout_ms", None)
-    if isinstance(cfg.get("timeout"), dict):
-        t = cfg["timeout"].get("timeout_ms", t)
+    timeout_cfg = cfg.get("timeout")
+    if isinstance(timeout_cfg, dict):
+        t = timeout_cfg.get("timeout_ms", t)
     return StepPolicies(
         retry=RetryPolicy(
-            max_attempts=int(r.get("max_attempts", 1)),
-            backoff_ms=int(r.get("backoff_ms", 0)),
+            max_attempts=_as_int(r.get("max_attempts"), default=1),
+            backoff_ms=_as_int(r.get("backoff_ms"), default=0),
         ),
         timeout=TimeoutPolicy(
-            timeout_ms=None if t in (None, "", 0) else int(t),
+            timeout_ms=None if t in (None, "", 0) else _as_int(t, default=0),
         ),
     )
+
+
+def _as_int(value: Any, *, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default

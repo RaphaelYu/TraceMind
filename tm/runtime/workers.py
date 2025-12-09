@@ -4,7 +4,7 @@ import asyncio
 import importlib
 import logging
 import multiprocessing as mp
-from multiprocessing import connection as mp_connection
+from multiprocessing import connection as mp_connection, process as mp_process
 import os
 import signal
 import threading
@@ -68,7 +68,7 @@ class WorkerOptions:
 
 @dataclass
 class WorkerState:
-    process: mp.Process
+    process: mp_process.BaseProcess
     conn: mp_connection.Connection
     last_heartbeat: float
     restarts: int = 0
@@ -424,13 +424,19 @@ class TaskWorkerSupervisor:
                 break
             with self._lock:
                 snapshot = list(self._states.items())
-            conns = [state.conn for _, state in snapshot if not state.conn.closed]
+            conns: list[mp_connection.Connection] = [
+                state.conn
+                for _, state in snapshot
+                if isinstance(state.conn, mp_connection.Connection) and not state.conn.closed
+            ]
             if conns:
                 try:
                     ready = mp_connection.wait(conns, timeout=0.5)
                 except Exception:  # pragma: no cover - wait failure fallback
                     ready = []
                 for conn in ready:
+                    if not isinstance(conn, mp_connection.Connection):
+                        continue
                     try:
                         msg = conn.recv()
                     except (EOFError, OSError):

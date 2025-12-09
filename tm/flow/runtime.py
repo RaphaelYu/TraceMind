@@ -134,9 +134,9 @@ class FlowRuntime:
         self,
         name: str,
         *,
-        inputs: Optional[Dict[str, Any]] = None,
+        inputs: Optional[Mapping[str, Any]] = None,
         response_mode: Optional[ResponseMode] = None,
-        ctx: Optional[Dict[str, Any]] = None,
+        ctx: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute ``name`` and return a structured result envelope."""
         return await self.execute(name, inputs=inputs, response_mode=response_mode, ctx=ctx)
@@ -145,9 +145,9 @@ class FlowRuntime:
         self,
         name: str,
         *,
-        inputs: Optional[Dict[str, Any]] = None,
+        inputs: Optional[Mapping[str, Any]] = None,
         response_mode: Optional[ResponseMode] = None,
-        ctx: Optional[Dict[str, Any]] = None,
+        ctx: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         flow = self.choose_flow(name)
         spec = self.build_dag(flow)
@@ -155,11 +155,13 @@ class FlowRuntime:
         payload = dict(inputs or {})
         meta = dict(ctx or {})
 
-        run_id = meta.get("run_id") if isinstance(meta.get("run_id"), str) else uuid.uuid4().hex
+        maybe_run_id = meta.get("run_id")
+        run_id: str = maybe_run_id if isinstance(maybe_run_id, str) else uuid.uuid4().hex
         model_name = None
         maybe_model = payload.get("model") or meta.get("model")
         if isinstance(maybe_model, str):
             model_name = maybe_model
+        flow_id = spec.flow_id or spec.name
 
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
@@ -167,7 +169,7 @@ class FlowRuntime:
         request = _Request(
             run_id=run_id,
             flow_name=name,
-            flow_id=spec.flow_id,
+            flow_id=flow_id,
             flow_rev=spec.flow_revision(),
             spec=spec,
             inputs=payload,
@@ -574,22 +576,22 @@ class FlowRuntime:
             return state
         return state
 
-    async def _invoke_hook(self, hook, *args):  # type: ignore[no-untyped-def]
+    async def _invoke_hook(self, hook: Callable[..., Any] | None, *args: Any) -> Any:
         if hook is None:
             return None
         return await self._invoke_callable(hook, *args)
 
-    async def _invoke_after(self, hook, ctx: Dict[str, Any], output: Any):  # type: ignore[no-untyped-def]
+    async def _invoke_after(self, hook: Callable[..., Any] | None, ctx: Dict[str, Any], output: Any) -> Any:
         if hook is None:
             return None
         return await self._invoke_callable(hook, ctx, output)
 
-    async def _invoke_error(self, hook, ctx: Dict[str, Any], exc: BaseException):  # type: ignore[no-untyped-def]
+    async def _invoke_error(self, hook: Callable[..., Any] | None, ctx: Dict[str, Any], exc: BaseException) -> Any:
         if hook is None:
             return None
         return await self._invoke_callable(hook, ctx, exc)
 
-    async def _invoke_callable(self, fn, *args):  # type: ignore[no-untyped-def]
+    async def _invoke_callable(self, fn: Callable[..., Any], *args: Any) -> Any:
         if inspect.iscoroutinefunction(fn):
             return await fn(*args)
         result = await asyncio.to_thread(fn, *args)
@@ -605,7 +607,10 @@ class FlowRuntime:
             try:
                 close()
             except TypeError:
-                close(flush=True)  # type: ignore[misc]
+                try:
+                    close(flush=True)
+                except TypeError:
+                    pass
 
     async def aclose(self) -> None:
         if not self._started:

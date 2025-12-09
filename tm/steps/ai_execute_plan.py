@@ -207,7 +207,7 @@ def _resolve_inputs(raw_inputs: Mapping[str, Any], plan_results: Mapping[str, Di
 
 
 try:  # pragma: no cover
-    from tm.steps.registry import register_step  # type: ignore
+    from tm.steps.registry import register_step
 
     register_step(STEP_NAME, run)
 except Exception:

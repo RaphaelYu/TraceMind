@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 try:  # pragma: no cover - optional dependency
-    import yaml  # type: ignore
+    import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover
-    yaml = None  # type: ignore
+    yaml = None
 
 
 class RuntimeConfigError(RuntimeError):

@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
 try:  # pragma: no cover - Python <3.11 fallback
-    import tomllib  # type: ignore[attr-defined]
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib
 
 LimitKey = Tuple[str, Optional[str], Optional[str]]
 
@@ -202,7 +202,7 @@ def _parse_limits(section: Mapping[str, object], enabled: bool) -> LimitsConfig:
     )
 
 
-def _parse_limit_settings(raw) -> LimitSettings:  # type: ignore[no-untyped-def]
+def _parse_limit_settings(raw) -> LimitSettings:
     if not isinstance(raw, Mapping):
         return LimitSettings(enabled=False)
     return LimitSettings(
@@ -241,7 +241,7 @@ def _parse_breakers(section: Mapping[str, object], enabled: bool) -> BreakerConf
     )
 
 
-def _parse_breaker_settings(raw) -> BreakerSettings:  # type: ignore[no-untyped-def]
+def _parse_breaker_settings(raw) -> BreakerSettings:
     if not isinstance(raw, Mapping):
         return BreakerSettings(enabled=False)
     return BreakerSettings(
@@ -273,10 +273,14 @@ def _get_int(section: Mapping[str, object], key: str, *, default: int | None = N
     value = section.get(key)
     if value is None:
         return default
-    try:
+    if isinstance(value, bool):
         return int(value)
-    except (TypeError, ValueError):
-        return default
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 @dataclass
@@ -342,7 +346,7 @@ def _parse_guard(section: Mapping[str, object], enabled: bool) -> GuardConfig:
     )
 
 
-def _rules_from_obj(raw) -> Tuple[Dict[str, object], ...]:  # type: ignore[no-untyped-def]
+def _rules_from_obj(raw) -> Tuple[Dict[str, object], ...]:
     if isinstance(raw, Mapping) and "type" in raw:
         return _as_rule_tuple([raw])
     if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
@@ -398,10 +402,14 @@ def _get_float(section: Mapping[str, object], key: str, *, default: float | None
     value = section.get(key)
     if value is None:
         return default
-    try:
+    if isinstance(value, bool):
         return float(value)
-    except (TypeError, ValueError):
-        return default
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+    return default
 
 
 __all__ = [

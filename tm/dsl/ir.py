@@ -389,7 +389,7 @@ def _parse_wdl_step(node: RawNode, ctx: _Context) -> WdlStep:
 
     entry = next((item for item in node.entries if item.key is not None), None)
     if entry is None:
-        raise _ctx_error(ctx, "Step declaration missing identifier", node.location)  # type: ignore[attr-defined]
+        raise _ctx_error(ctx, "Step declaration missing identifier", node.location)
     key = entry.key
     assert key is not None
 

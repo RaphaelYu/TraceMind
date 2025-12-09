@@ -25,8 +25,10 @@ class StaticAnalyzer:
                 if n not in reachable:
                     issues.append({"kind": "unreachable", "node": n})
         for n, data in g.nodes(data=True):
-            step: Step = data.get("step")
-            if step.kind == NodeKind.TASK:
+            step = data.get("step")
+            if not isinstance(step, Step):
+                continue
+            if step.kind == NodeKind.TASK and step.uses is not None:
                 try:
                     self.registry.get(step.uses)
                 except KeyError:

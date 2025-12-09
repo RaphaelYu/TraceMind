@@ -12,14 +12,14 @@ from typing import Any, Dict, Mapping, MutableMapping, Optional, Sequence
 import logging
 
 try:  # pragma: no cover - platform specific
-    import fcntl  # type: ignore[attr-defined]
+    import fcntl
 except ModuleNotFoundError:  # pragma: no cover
-    fcntl = None  # type: ignore[attr-defined]
+    fcntl = None  # type: ignore[assignment]
 
 try:  # pragma: no cover - windows fallback
-    import msvcrt  # type: ignore[attr-defined]
+    import msvcrt
 except ModuleNotFoundError:  # pragma: no cover
-    msvcrt = None  # type: ignore[attr-defined]
+    msvcrt = None  # type: ignore[assignment]
 
 from .base import LeasedTask, WorkQueue
 

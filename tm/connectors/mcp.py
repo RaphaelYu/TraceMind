@@ -60,7 +60,7 @@ class McpServer:
         if not tool:
             return self._error_response(request_id, f"Unknown tool '{tool_name}'")
 
-        handler: Callable[[str, Dict[str, Any]], Any] | None = tool.get("handler")  # type: ignore[assignment]
+        handler: Callable[[str, Dict[str, Any]], Any] | None = tool.get("handler")
         if callable(handler):
             try:
                 result = handler(action, params)

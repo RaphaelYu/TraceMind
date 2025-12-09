@@ -83,11 +83,14 @@ def _build_health_request(names: List[str]):
 
 
 def _list_containers(ctx: Dict[str, object]) -> Dict[str, object]:
-    clients = ctx.get("clients") or {}
-    client: DockerClient = clients.get("docker")  # type: ignore[assignment]
+    clients_val = ctx.get("clients")
+    clients: Dict[str, object] = clients_val if isinstance(clients_val, dict) else {}
+    client_obj = clients.get("docker")
+    client: DockerClient | None = client_obj if isinstance(client_obj, DockerClient) else None
     if client is None:
         raise ValueError("Docker client missing in ctx['clients']['docker']")
-    names = ctx.get("request", {}).get("names", [])
+    request_cfg = ctx.get("request")
+    names = request_cfg.get("names", []) if isinstance(request_cfg, dict) else []
     containers = client.list_containers(all=True) or []
     if isinstance(names, list) and names:
         selected = [c for c in containers if c.get("Names") and any(n in c.get("Names", []) for n in names)]
@@ -106,11 +109,14 @@ def _build_restart_request(name: str):
 
 
 def _restart_container(ctx: Dict[str, object]) -> Dict[str, object]:
-    clients = ctx.get("clients") or {}
-    client: DockerClient = clients.get("docker")  # type: ignore[assignment]
+    clients_val = ctx.get("clients")
+    clients: Dict[str, object] = clients_val if isinstance(clients_val, dict) else {}
+    client_obj = clients.get("docker")
+    client: DockerClient | None = client_obj if isinstance(client_obj, DockerClient) else None
     if client is None:
         raise ValueError("Docker client missing in ctx['clients']['docker']")
-    container = ctx.get("request", {}).get("container")
+    request_cfg = ctx.get("request")
+    container = request_cfg.get("container") if isinstance(request_cfg, dict) else None
     if not isinstance(container, str):
         raise ValueError("Container name required in ctx['request']['container']")
     success = client.restart(container)
@@ -119,7 +125,8 @@ def _restart_container(ctx: Dict[str, object]) -> Dict[str, object]:
 
 
 def _signal_ready(ctx: Dict[str, object]) -> Dict[str, object]:
-    hub: CorrelationHub = ctx.get("correlator")  # type: ignore[assignment]
+    correlator_val = ctx.get("correlator")
+    hub: CorrelationHub | None = correlator_val if isinstance(correlator_val, CorrelationHub) else None
     if hub is None:
         raise ValueError("correlator must be provided in ctx['correlator']")
     req_id = ctx.get("req_id")

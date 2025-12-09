@@ -38,11 +38,11 @@ class Engine:
 
     # --------------- internal helpers ---------------
     @staticmethod
-    def _get_path(root: Dict[str, Any], dotted: str) -> Any:
+    def _get_path(root: Dict[str, Any], dotted: Any) -> Any:
         """Very small JSONPath-lite: $.vars.*, $.inputs.*, $.cfg.*"""
-        if not dotted or not dotted.startswith("$"):
+        if not isinstance(dotted, str) or not dotted.startswith("$"):
             return dotted
-        cur = {"vars": root.get("vars", {}), "inputs": root.get("inputs", {}), "cfg": root.get("cfg", {})}
+        cur: Any = {"vars": root.get("vars", {}), "inputs": root.get("inputs", {}), "cfg": root.get("cfg", {})}
         parts = dotted.lstrip("$").lstrip(".").split(".")
         cur = cur.get(parts[0], {}) if parts else {}
         for p in parts[1:]:
@@ -103,6 +103,8 @@ class Engine:
                 pol = parse_policies_from_cfg(step.cfg)
                 try:
                     self._run_checks(step.cfg.get("before"), ctx, call_in)
+                    if not isinstance(step.uses, str):
+                        raise ValueError("Task step is missing operator 'uses'")
                     out = self._run_operator(step.uses, ctx, call_in, pol)
                     self._run_checks(step.cfg.get("after"), ctx, {"**out": out, **call_in})
                     res = StepResult(status="ok", output=out, duration_ms=(time.time() - t0) * 1000)
@@ -174,10 +176,10 @@ class Engine:
                 break
 
             # single-successor semantics (except SWITCH which already set `current`)
-            succ = flow.successors(current)
-            if not succ:
+            next_nodes: List[str] = flow.successors(current)
+            if not next_nodes:
                 self.tracer.end(run_id, "ok")
                 break
-            current = succ[0]
+            current = next_nodes[0]
 
         return run_id, ctx.vars

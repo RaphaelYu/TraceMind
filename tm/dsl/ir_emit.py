@@ -108,7 +108,8 @@ def _build_nodes(
         if not isinstance(kind, str):
             kind = "task"
 
-        config = step.get("config") if isinstance(step.get("config"), dict) else {}
+        raw_config = step.get("config")
+        config: Mapping[str, Any] = raw_config if isinstance(raw_config, Mapping) else {}
         timeout_ms = step.get("timeout_ms")
         if not isinstance(timeout_ms, int) or timeout_ms < 0:
             timeout_ms = 0
@@ -117,10 +118,12 @@ def _build_nodes(
         node_type, params = _classify_node(kind, config)
         kinds.add(node_type)
 
-        if policy_ref is None and isinstance(config, dict):
-            ref = config.get("policy_ref")
+        if policy_ref is None and isinstance(raw_config, Mapping):
+            ref = raw_config.get("policy_ref")
             if isinstance(ref, str):
-                policy_ref = config.get("policy_id") if isinstance(config.get("policy_id"), str) else Path(ref).stem
+                policy_ref = (
+                    raw_config.get("policy_id") if isinstance(raw_config.get("policy_id"), str) else Path(ref).stem
+                )
                 payload = _resolve_policy_payload(ref, policy_resolver)
                 if payload is not None:
                     policy_payload = payload
@@ -147,16 +150,20 @@ def _resolve_policy_payload(ref: str, resolver: Mapping[Path, PolicyCompilation]
     resolved = path.resolve()
     compilation = resolver.get(resolved)
     if compilation is not None:
-        return copy.deepcopy(compilation.data)
+        payload = copy.deepcopy(compilation.data)
+        if isinstance(payload, Mapping):
+            return dict(payload)
+        return payload if isinstance(payload, dict) else None
     if resolved.exists():
         try:
-            return json.loads(resolved.read_text(encoding="utf-8"))
+            loaded = json.loads(resolved.read_text(encoding="utf-8"))
+            return loaded if isinstance(loaded, dict) else None
         except Exception:
             return None
     return None
 
 
-def _classify_node(kind: str, config: Mapping[str, Any] | Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+def _classify_node(kind: str, config: Mapping[str, Any]) -> Tuple[str, Dict[str, Any]]:
     if kind == "switch":
         params = {
             "key_from": config.get("key_from"),
@@ -169,7 +176,8 @@ def _classify_node(kind: str, config: Mapping[str, Any] | Dict[str, Any]) -> Tup
     if isinstance(call, Mapping):
         target = call.get("target")
         if isinstance(target, str) and target:
-            args = call.get("args") if isinstance(call.get("args"), Mapping) else {}
+            args_value = call.get("args")
+            args: Mapping[str, Any] = args_value if isinstance(args_value, Mapping) else {}
             return target, dict(args)
     outputs = config.get("outputs") if isinstance(config, Mapping) else None
     if isinstance(outputs, Mapping):

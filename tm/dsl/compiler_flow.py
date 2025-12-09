@@ -64,7 +64,7 @@ class _FlowBuilder:
         self._link_segments(outputs_segment.exits, finish_segment.entry)
 
         flow_steps = list(self._steps.values())
-        flow = {
+        flow: Dict[str, object] = {
             "flow": {
                 "id": self.workflow.name,
                 "version": self.workflow.version,
@@ -196,7 +196,7 @@ class _FlowBuilder:
         return SequenceGraph(entry=step_id, exits=())
 
     def _add_step(self, step: Dict[str, object], location: SourceSpan) -> None:
-        step_id = step["id"]  # type: ignore[index]
+        step_id = step.get("id")
         if not isinstance(step_id, str):
             raise FlowCompileError("Step identifier must be a string")
         if step_id in self._steps:

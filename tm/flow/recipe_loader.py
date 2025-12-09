@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 try:
-    import yaml  # type: ignore
+    import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    yaml = None  # type: ignore
+    yaml = None
 
 from .operations import Operation
 from .spec import FlowSpec, StepDef

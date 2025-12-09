@@ -132,7 +132,10 @@ def register_guard(name: str) -> Callable[[GuardHandler], GuardHandler]:
 
 def _rule_length_max(rule: GuardRule, values: Sequence[Any], _: Mapping[str, Any]) -> Iterable[GuardViolation]:
     try:
-        limit = int(rule.options.get("value"))
+        raw_limit = rule.options.get("value") if isinstance(rule.options, Mapping) else None
+        if raw_limit is None:
+            return []
+        limit = int(raw_limit)
     except (TypeError, ValueError):
         return []
     violations: List[GuardViolation] = []

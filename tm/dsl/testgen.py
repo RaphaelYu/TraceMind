@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 import ast
 import json
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Mapping
 
 from ._render import render_raw_node
 from .ir import (
@@ -198,12 +198,12 @@ def _generate_pdl_cases(policy: PdlPolicy, policy_name: str) -> List[GeneratedCa
     cases: List[GeneratedCase] = []
     seen: set[Tuple[Tuple[str, object], ...]] = set()
 
-    def add_case(name: str, values: Dict[str, object]) -> None:
+    def add_case(name: str, values: Mapping[str, object]) -> None:
         frozen = tuple(sorted(values.items()))
         if frozen in seen:
             return
         seen.add(frozen)
-        inputs = {"values": dict(values)}
+        inputs: Dict[str, object] = {"values": dict(values)}
         cases.append(GeneratedCase(name=name, inputs=inputs, expectations={}))
 
     add_case("base", base_values or {"metric": 0})
@@ -219,9 +219,15 @@ def _generate_pdl_cases(policy: PdlPolicy, policy_name: str) -> List[GeneratedCa
         add_case("generic_violation", {"metric": 1})
         add_case("generic_ok", {"metric": 0})
 
+    normalized_cases: List[GeneratedCase] = []
+    for case in cases:
+        inputs_obj = case.inputs.get("values", case.inputs) if isinstance(case.inputs, dict) else case.inputs
+        inputs_dict: Dict[str, object] = dict(inputs_obj) if isinstance(inputs_obj, Mapping) else {"values": inputs_obj}
+        normalized_cases.append(replace(case, inputs=inputs_dict))
+
     cases = _ensure_min_cases(
-        [replace(case, inputs=case.inputs.get("values", case.inputs)) for case in cases],
-        base_values or {"metric": 0},
+        normalized_cases,
+        dict(base_values or {"metric": 0}),
         prefix="policy",
     )
 
@@ -230,7 +236,7 @@ def _generate_pdl_cases(policy: PdlPolicy, policy_name: str) -> List[GeneratedCa
         inputs = case.inputs if isinstance(case.inputs, dict) else {"values": case.inputs}
         if "values" not in inputs:
             inputs = {"values": inputs}
-        wrapped.append(GeneratedCase(case.name, inputs, case.expectations))
+        wrapped.append(GeneratedCase(case.name, dict(inputs), case.expectations))
     return wrapped
 
 
@@ -332,8 +338,8 @@ def _fallback_non_match(options: Sequence[object]) -> object:
     if isinstance(first, bool):
         return not first
     if isinstance(first, (int, float)):
-        candidate = first + 1
-        return candidate if candidate not in options else first - 1
+        candidate_num = first + 1
+        return candidate_num if candidate_num not in options else first - 1
     return "other"
 
 

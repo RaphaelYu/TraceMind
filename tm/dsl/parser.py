@@ -189,6 +189,7 @@ def _parse_mapping(
                 filename=filename,
             )
         separator_index = _find_mapping_separator(line.content)
+        value_node: RawNode
         if separator_index is None:
             entry_location = SourceLocation(line.number, line.indent + 1)
             value_node = RawScalar(value=line.content, location=entry_location)
@@ -286,6 +287,7 @@ def _parse_sequence(
         value_column = line.indent + 3 + (len(raw_value) - len(value_text))
         cur += 1
 
+        value_node: RawNode
         if not value_text:
             if cur >= len(lines):
                 raise _error(
@@ -326,6 +328,7 @@ def _parse_sequence(
                     filename=filename,
                 )
             key_location = SourceLocation(line.number, value_column)
+            nested: RawNode
             if cur >= len(lines) or lines[cur].indent <= expected_indent:
                 nested = RawMapping(entries=tuple(), location=SourceLocation(line.number, value_column))
             else:
@@ -344,12 +347,13 @@ def _parse_sequence(
                         expected_indent=next_line.indent,
                         filename=filename,
                     )
+            nested_node: RawNode = nested
             value_node = RawMapping(
                 entries=(
                     RawMappingEntry(
                         key=key_text,
                         key_location=key_location,
-                        value=nested,
+                        value=nested_node,
                     ),
                 ),
                 location=SourceLocation(line.number, line.indent + 1),

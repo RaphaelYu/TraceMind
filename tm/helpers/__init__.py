@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Sequence, List
 
 try:
-    import yaml  # type: ignore
+    import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover
-    yaml = None  # type: ignore
+    yaml = None
 
 
 # ---------------------------------------------------------------------------

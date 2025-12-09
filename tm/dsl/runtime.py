@@ -213,6 +213,8 @@ def _handle_policy_apply(
     return result
 
 
+_POLICY_CACHE: Dict[str, Dict[str, Any]] = {}
+
 _HANDLERS = {
     "opcua.read": _handle_opcua_read,
     "opcua.write": _handle_opcua_write,
@@ -223,7 +225,7 @@ _HANDLERS = {
 def _load_policy(path: Any, *, cache: Optional[Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
     if not isinstance(path, str):
         raise RuntimeError("policy.apply step requires policy_ref path")
-    store = cache if cache is not None else _POLICY_CACHE  # type: ignore[name-defined]
+    store = cache if cache is not None else _POLICY_CACHE
     cached = store.get(path)
     if cached is None:
         resolved = Path(path)
@@ -233,10 +235,6 @@ def _load_policy(path: Any, *, cache: Optional[Dict[str, Dict[str, Any]]]) -> Di
         store[path] = data
         cached = data
     return cached
-
-
-# Backward compatibility cache for module-level calls
-_POLICY_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 __all__ = ["Engine", "PythonEngine", "call", "switch", "emit_outputs"]

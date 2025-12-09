@@ -19,14 +19,14 @@ router = APIRouter(prefix="/service", tags=["service"])
 
 @dataclass
 class _InlineFlow:
-    spec: FlowSpec
+    spec_obj: FlowSpec
 
     @property
     def name(self) -> str:
-        return self.spec.name
+        return self.spec_obj.name
 
     def spec(self) -> FlowSpec:
-        return self.spec
+        return self.spec_obj
 
 
 def _ensure_generic_flow() -> None:
@@ -91,14 +91,15 @@ async def run_service(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="payload must be an object")
 
     try:
-        result = await _service_body.handle(op, body, response_mode=ResponseMode.DEFERRED)
+        result: Dict[str, object] = await _service_body.handle(op, body, response_mode=ResponseMode.DEFERRED)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     status = result.get("status")
-    output = result.get("output", {})
+    output_raw = result.get("output", {})
+    output: Dict[str, object] = output_raw if isinstance(output_raw, dict) else {}
 
     if status == "rejected":
         raise HTTPException(status_code=429, detail=result.get("error_message", "queue full"))

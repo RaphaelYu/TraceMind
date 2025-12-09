@@ -8,7 +8,7 @@ import threading
 import time
 from typing import Dict, List, Optional, Tuple
 
-from tm.obs.counters import Registry
+from tm.obs.counters import Registry, _MetricsProxy
 from tm.obs import counters
 from tm.obs.exporters.file_exporter import _flatten_snapshot
 from tm.storage.binlog import BinaryLogWriter
@@ -17,7 +17,7 @@ from tm.storage.binlog import BinaryLogWriter
 class BinlogExporter:
     def __init__(
         self,
-        registry: Registry,
+        registry: Registry | _MetricsProxy,
         *,
         dir_path: str,
         interval_s: float = 5.0,
@@ -32,7 +32,7 @@ class BinlogExporter:
         self._writer: Optional[BinaryLogWriter] = None
         self._last_values: Dict[Tuple[str, str, Tuple[Tuple[str, str], ...]], float] = {}
 
-    def start(self, registry: Optional[Registry] = None) -> None:
+    def start(self, registry: Optional[Registry | _MetricsProxy] = None) -> None:
         if registry is not None:
             self._registry = registry
         if self._thread and self._thread.is_alive():
@@ -87,15 +87,28 @@ class BinlogExporter:
         frames: List[Tuple[str, bytes]] = []
         ts = time.time()
         for entry in entries:
+            etype = entry.get("type")
+            name = entry.get("name")
+            labels_obj = entry.get("labels", {})
+            value_obj = entry.get("value")
+            if not isinstance(etype, str) or not isinstance(name, str):
+                continue
+            if not isinstance(labels_obj, dict):
+                continue
+            if not isinstance(value_obj, (int, float, str)):
+                continue
+            try:
+                value = float(value_obj)
+            except (TypeError, ValueError):
+                continue
             key = (
-                entry["type"],
-                entry["name"],
-                tuple(sorted((str(k), str(v)) for k, v in entry["labels"].items())),
+                etype,
+                name,
+                tuple(sorted((str(k), str(v)) for k, v in labels_obj.items())),
             )
-            value = float(entry["value"])
             last = self._last_values.get(key, 0.0)
             record_value: Optional[float]
-            if entry["type"] == "gauge":
+            if etype == "gauge":
                 if last == value:
                     record_value = None
                 else:
@@ -130,7 +143,7 @@ class BinlogExporter:
 
 def maybe_enable_from_env(
     env: Optional[Dict[str, str]] = None,
-    registry: Optional[Registry] = None,
+    registry: Optional[Registry | _MetricsProxy] = None,
 ) -> Optional[BinlogExporter]:
     env_map = env or os.environ
     dir_path = env_map.get("TRACE_METRICS_BINLOG_DIR")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence, Mapping
 
 from ._render import render_raw_node
 from .ir import (
@@ -24,7 +24,7 @@ class PolicyCompileError(ValueError):
 @dataclass(frozen=True)
 class PolicyCompilation:
     policy_id: str
-    data: Dict[str, object]
+    data: Mapping[str, object]
     source: Optional[Path]
 
 
@@ -32,7 +32,7 @@ def compile_policy(
     policy: PdlPolicy, *, source: Optional[Path] = None, policy_id: Optional[str] = None
 ) -> PolicyCompilation:
     resolved_policy_id = policy_id or _derive_policy_id(policy, source)
-    compiled = {
+    compiled: Dict[str, object] = {
         "policy": {
             "id": resolved_policy_id,
             "strategy": policy.version,
@@ -74,18 +74,18 @@ def _render_emit(fields: Sequence[PdlEmitField]) -> Dict[str, object]:
 
 def _render_statement(statement: PdlStatement) -> Dict[str, object]:
     if isinstance(statement, PdlAssignment):
-        payload = {
+        payload_assign: Dict[str, object] = {
             "type": "assignment",
             "target": statement.target,
             "operator": statement.operator,
             "expression": statement.expression,
         }
         if statement.statement_id:
-            payload["id"] = statement.statement_id
-        payload.update(_span_metadata(statement.location))
-        return payload
+            payload_assign["id"] = statement.statement_id
+        payload_assign.update(_span_metadata(statement.location))
+        return payload_assign
     if isinstance(statement, PdlChoose):
-        payload = {
+        payload_choose: Dict[str, object] = {
             "type": "choose",
             "options": [
                 {
@@ -97,17 +97,17 @@ def _render_statement(statement: PdlStatement) -> Dict[str, object]:
                 for option in statement.options
             ],
         }
-        payload.update(_span_metadata(statement.location))
-        return payload
+        payload_choose.update(_span_metadata(statement.location))
+        return payload_choose
     if isinstance(statement, PdlConditional):
-        payload = {
+        payload_if: Dict[str, object] = {
             "type": "if",
             "condition": statement.condition,
             "then": [_render_statement(child) for child in statement.body],
             "else": [_render_statement(child) for child in statement.else_body] if statement.else_body else None,
         }
-        payload.update(_span_metadata(statement.location))
-        return payload
+        payload_if.update(_span_metadata(statement.location))
+        return payload_if
     raise PolicyCompileError(f"Unsupported statement type {type(statement)!r}")
 
 

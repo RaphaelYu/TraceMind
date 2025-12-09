@@ -17,7 +17,7 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
         super().__init__("localhost")
         self._socket_path = socket_path
 
-    def connect(self) -> None:  # type: ignore[override]
+    def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(self._socket_path)
         self.sock = sock
@@ -38,7 +38,7 @@ class DockerClient:
 
     def restart(self, container_id: str) -> bool:
         status = self._request("POST", f"/containers/{container_id}/restart", expect_json=False)
-        return status < 300
+        return bool(isinstance(status, int) and status < 300)
 
     def ping(self) -> bool:
         try:

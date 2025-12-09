@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from tm.ai.feedback import FeedbackEvent, reward
+from tm.ai.feedback import FeedbackEvent, Outcome, reward
 from tm.ai.reward_config import RewardWeights, load_reward_weights
 from tm.ai.retrospect import Retrospect
 from tm.ai.tuner import BanditTuner
@@ -60,7 +60,7 @@ class RunEndPipeline:
         return reward(event, self._weights)
 
 
-def _resolve_outcome(record: FlowRunRecord) -> str:
+def _resolve_outcome(record: FlowRunRecord) -> Outcome:
     for candidate in (record.outcome, record.status):
         if isinstance(candidate, str):
             lowered = candidate.lower()

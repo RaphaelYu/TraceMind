@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Mapping
 
 try:  # pragma: no cover - optional dependency
-    import yaml
+    import yaml  # type: ignore[import-untyped]
 except ModuleNotFoundError:  # pragma: no cover
     yaml = None
 

@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Mapping, Optional
 
 try:  # pragma: no cover - python < 3.11 fallback
-    import tomllib  # type: ignore[attr-defined]
+    import tomllib
 except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib
 
 
 @dataclass(frozen=True)
@@ -24,10 +24,14 @@ class RewardWeights:
             raw = overrides.get(field.name)
             if raw is None:
                 continue
-            try:
+            if isinstance(raw, bool):
                 updates[field.name] = float(raw)
-            except (TypeError, ValueError):
                 continue
+            if isinstance(raw, (int, float, str)):
+                try:
+                    updates[field.name] = float(raw)
+                except (TypeError, ValueError):
+                    continue
         if not updates:
             return self
         return replace(self, **updates)

@@ -43,7 +43,13 @@ def sink(events: List[object]) -> None:
     # Best-effort: enqueue without blocking in the request thread
     for e in events:
         if e.__class__.__name__ == "ObjectUpserted":
-            payload = {"kind": e.kind, "obj_id": e.obj_id, "payload": e.payload, "txn_meta": e.txn_meta}
+            kind = getattr(e, "kind", None)
+            obj_id = getattr(e, "obj_id", None)
+            payload_data = getattr(e, "payload", None)
+            txn_meta = getattr(e, "txn_meta", None)
+            if not isinstance(kind, str) or not isinstance(obj_id, str):
+                continue
+            payload = {"kind": kind, "obj_id": obj_id, "payload": payload_data, "txn_meta": txn_meta}
             item = (b"ObjectUpserted", orjson.dumps(payload))
             try:
                 Q.put_nowait(item)
@@ -98,12 +104,17 @@ def _diff_json(old: Any, new: Any, path: Tuple[Any, ...] = ()) -> List[Tuple[Pat
 def _on_event(ev: object):
     if ev.__class__.__name__ != "ObjectUpserted":
         return
-    key = f"{ev.kind}:{ev.obj_id}"
+    kind = getattr(ev, "kind", None)
+    obj_id = getattr(ev, "obj_id", None)
+    payload = getattr(ev, "payload", None)
+    if not isinstance(kind, str) or not isinstance(obj_id, str):
+        return
+    key = f"{kind}:{obj_id}"
     old = _last.get(key) or {}
-    new = ev.payload or {}
+    new = payload or {}
     changes = _diff_json(old, new)
     changed_paths = [p for (p, _, __, ___) in changes]
-    ctx = {"kind": ev.kind, "id": ev.obj_id, "old": old, "new": new, "effects": []}
+    ctx: Dict[str, Any] = {"kind": kind, "id": obj_id, "old": old, "new": new, "effects": []}
     out = pipe.run(ctx, changed_paths, sel_match)
     _last[key] = out.get("new", new)
 
