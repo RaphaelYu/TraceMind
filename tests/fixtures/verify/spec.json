@@ -1,0 +1,9 @@
+{
+  "initial_store": {"user": true},
+  "initial_pending": [],
+  "changed_paths": ["start", "loop"],
+  "invariants": ["NOT Pending(read_profile) OR Has(user)"],
+  "properties": [
+    {"name": "goal_reachable", "formula": "EF Done(goal)"}
+  ]
+}

@@ -48,6 +48,13 @@ from tm.cli.dsl import register_dsl_commands
 from tm.cli.flow import register_flow_commands
 from tm.cli.validate import register_validate_command
 from tm.cli.simulate import register_simulate_command
+from tm.verify import (
+    Explorer,
+    TraceMindAdapter,
+    build_report,
+    load_plan as load_verify_plan,
+    load_spec as load_verify_spec,
+)
 
 _TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates"
 _DAEMON_FLAG_ENV = "TM_ENABLE_DAEMON"
@@ -354,6 +361,49 @@ def _build_parser() -> argparse.ArgumentParser:
         print(json.dumps(payload, indent=2))
         return 0 if result.status == "completed" else 1
 
+    def _cmd_verify_semantic(args):
+        if not args.plan or not args.spec:
+            print("verify: --plan and --spec are required", file=sys.stderr)
+            return 1
+        plan = load_verify_plan(Path(args.plan))
+        spec = load_verify_spec(Path(args.spec))
+        adapter = TraceMindAdapter.from_plan(
+            plan,
+            initial_store=spec.initial_store,
+            changed_paths=spec.changed_paths,
+            initial_pending=spec.initial_pending,
+        )
+        explorer = Explorer(adapter)
+        model = explorer.run(max_depth=int(args.depth), hash_mode=args.hash_mode)
+        report = build_report(
+            invariants=spec.invariants,
+            properties=spec.properties,
+            model=model,
+            adapter=adapter,
+        )
+        ok = all(inv.ok for inv in report.invariants) and all(p.ok for p in report.properties) and not model.deadlocks
+        if args.format == "json":
+            print(json.dumps(report.as_dict(), indent=2))
+        else:
+            print(f"explored={report.explored_states} depth<={report.max_depth} deadlocks={len(report.deadlocks)}")
+            if model.deadlocks:
+                print(f"deadlock_states={model.deadlocks}")
+            for inv in report.invariants:
+                status = "OK" if inv.ok else "FAIL"
+                print(f"invariant: {inv.expr} -> {status}")
+                if inv.reason and not inv.ok:
+                    print(f"  reason: {inv.reason}")
+                if inv.path and not inv.ok:
+                    print(f"  path: {inv.path}")
+            for prop in report.properties:
+                status = "OK" if prop.ok else "FAIL"
+                print(f"property {prop.name}: {status} ({prop.formula})")
+                if prop.reason and not prop.ok:
+                    print(f"  reason: {prop.reason}")
+                if prop.counterexample and not prop.ok:
+                    print(f"  counterexample: {prop.counterexample}")
+        return 0 if ok else 1
+
     def _cmd_verify_online(args):
         manifest_path = Path(args.manifest)
         if args.sources:
@@ -419,7 +469,15 @@ def _build_parser() -> argparse.ArgumentParser:
     runtime_run.set_defaults(func=_cmd_runtime_run_ir)
 
     verify_parser = sub.add_parser("verify", help="Verification commands")
+    verify_parser.add_argument("--plan", help="Path to pipeline plan (JSON/YAML)")
+    verify_parser.add_argument("--spec", help="Path to verification spec (JSON/YAML)")
+    verify_parser.add_argument("--depth", type=int, default=8, help="Maximum exploration depth (default: 8)")
+    verify_parser.add_argument(
+        "--hash-mode", choices=["full", "store"], default="full", help="State hashing mode for deduplication"
+    )
+    verify_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
     verify_sub = verify_parser.add_subparsers(dest="vcmd")
+    verify_parser.set_defaults(func=_cmd_verify_semantic)
 
     verify_online = verify_sub.add_parser(
         "online",

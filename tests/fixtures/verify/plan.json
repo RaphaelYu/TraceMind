@@ -1,0 +1,11 @@
+{
+  "steps": {
+    "read_profile": {"reads": ["user"], "writes": ["profile"]},
+    "goal": {"reads": [], "writes": ["goal"]},
+    "loop": {"reads": [], "writes": ["loop"]}
+  },
+  "rules": [
+    {"name": "on_start", "triggers": ["start"], "steps": ["read_profile", "goal"]},
+    {"name": "loop", "triggers": ["loop"], "steps": ["loop"]}
+  ]
+}

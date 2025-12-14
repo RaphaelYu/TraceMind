@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, Optional
 
 try:
     import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
+except ModuleNotFoundError:
     yaml = None
 
 from .operations import Operation
