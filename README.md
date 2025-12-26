@@ -1,56 +1,97 @@
-# TraceMind — Governable AI Assistance Core  
+# TraceMind — Governable AI Assistance Core
 
-Built to keep AI contributions accountable, auditable, and bound by explicit governance.  
+Built to keep AI contributions **accountable, auditable, and bound by explicit governance**.
+
+TraceMind does not try to make AI smarter.
+It exists to make AI-assisted systems **safe by design**.
+
+---
 
 ## What Problem TraceMind Solves
 
-Modern AI-assisted systems often drift beyond their intended scope: they make opaque decisions, execute actions without checks, and adapt themselves in ways that are hard to roll back. TraceMind is designed to stop that by treating every proposal, policy, and execution as an auditable artifact governed by mandatory review before anything runs. It is useful wherever AI needs to help with product workflows, operations, compliance workflows, risk controls, or any complex multi-step procedure that must stay within clearly defined boundaries.
+Modern AI-assisted systems tend to drift beyond their intended boundaries.
+They generate opaque decisions, execute actions without sufficient checks, and adapt in ways that are difficult to audit, explain, or roll back.
+
+TraceMind is designed to stop that drift.
+
+It provides a governance-first core where **every proposal, decision, and execution is explicit, reviewable, and constrained**.
+TraceMind is useful wherever AI participates in product workflows, operational processes, compliance pipelines, risk controls, or any complex multi-step procedure that must remain within clearly defined limits.
+
+---
 
 ## What TraceMind Is / Is Not
 
 **TraceMind is:**
 
 * a governable AI assistance core that separates proposal from execution
-* a platform for composing, verifying, and governing artifact-driven workflows
+* a system for composing, verifying, and governing artifact-driven workflows
 * policy- and evidence-first by design, with every action traceable and replayable
 
 **TraceMind is not:**
 
 * an autonomous agent runtime
-* a prompt orchestration tool
+* a prompt orchestration framework
 * a system where AI directly executes actions
 
-## Core Ideas
-
-* AI proposes; the system decides.
-* Artifacts are the source of truth—nothing happens unless an artifact allows it.
-* Policies are mandatory and enforceable boundaries.
-* Runtime executes according to a verified plan; it does not reason about intent.
-* Every action leaves immutable evidence for auditing and rollback.
+---
 
 ## How TraceMind Works
 
-``` Intent → Composition → Verification → Execution
+```Intent → Composition → Verification → Execution
                           ↓
                     Trace & Governance
 ```
 
-Intents describe what should happen, not how to do it. Composition combines intents with declared capabilities and policies to produce candidate workflows, which must pass verification before the runtime executes them. Execution always emits traces that feed back into governance, so violations are visible, explainable, and trigger approved patch proposals before anything changes.
+AI expresses **intent**—what should be achieved, not how to do it.
+The system composes candidate workflows from declared capabilities and policies, verifies them against mandatory constraints, and only then allows execution.
+
+Execution always produces immutable traces.
+Those traces feed back into governance so violations are visible, explainable, and can trigger **explicitly approved** changes—never silent adaptation.
+
+---
+
+## Core Ideas
+
+* **AI proposes; the system decides.**
+* **Artifacts are the source of truth.** Nothing happens unless an artifact allows it.
+* **Policies are mandatory boundaries, not optional guidelines.**
+* **Runtime executes verified plans; it does not reason about intent.**
+* **Every action leaves evidence for auditing and rollback.**
+
+---
 
 ## Repository Structure (as of today)
 
-* `docs/` – design notes and the evolving semantic specification that codifies the artifact doctrine and governance loops.
-* `tm/` – the core modules for artifacts, capabilities, composer/verifier, iteration loop, and the CLI that wires them together.
-* `tests/` – validation suites that exercise artifact schemas, catalog flows, composer/verifier behaviors, iteration governance, and minimal runtime scenarios.
-* `examples/` – minimal reference flows used for exercising the reference workflow and governance loop.
+```docs/        Design notes and the evolving semantic foundation
+tm/          Core modules: artifacts, capabilities, composition, verification, governance, CLI
+tests/       Validation suites for artifacts, workflows, and governance behavior
+examples/    Minimal reference flows exercising the closed governance loop
+```
+
+The repository reflects an architecture-locking phase rather than a finished product.
+
+---
 
 ## Development Status & Roadmap
 
-The semantic model and specification are still being established while the codebase locks in the core artifacts and validation tooling. Current work focuses on making schemas, catalogs, composer/verifier, and the governance loop executable in a deterministic way. Breaking changes are expected while the semantic foundation is finalized; treat this project as architecting toward a governance-first core rather than a finished product.
+TraceMind is in an early stage where the **semantic foundation is being fixed before feature expansion**.
 
-## Contribution Rules
+Current focus areas include:
+
+* defining and validating canonical artifacts
+* enforcing policy-driven composition and verification
+* making governance and iteration explicit and deterministic
+
+Breaking changes are expected while these foundations are finalized.
+This project prioritizes **correctness and control** over convenience or speed.
+
+---
+
+## For Contributors and Integrators
+
+TraceMind enforces strict boundaries by design:
 
 * Do not add execution logic without policy verification.
-* Do not let AI trigger runtime actions directly.
+* Do not allow AI to trigger runtime actions directly.
 * Every feature must map to an explicit artifact or rule.
 * If you cannot explain how a change is governed, do not implement it.
