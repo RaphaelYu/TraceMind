@@ -11,7 +11,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence
+from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
 
 try:
     import yaml
@@ -41,6 +41,7 @@ from tm.triggers.runner import run_triggers
 from tm.runtime import configure_engine, run_ir_flow, IrRunnerError
 from tm.dsl import compile_paths, CompileError
 from tm.runtime.config import RuntimeConfigError, load_runtime_config
+from tm.runtime.minimal import run_workflow as run_minimal_workflow
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
@@ -48,6 +49,9 @@ from tm.cli.dsl import register_dsl_commands
 from tm.cli.flow import register_flow_commands
 from tm.cli.validate import register_validate_command
 from tm.cli.simulate import register_simulate_command
+from tm.cli.caps import register_caps_commands
+from tm.cli.compose import register_compose_commands
+from tm.cli.iterate import register_iterate_commands
 from tm.verify import (
     Explorer,
     TraceMindAdapter,
@@ -344,23 +348,6 @@ def _build_parser() -> argparse.ArgumentParser:
         else:
             print(json.dumps(entries, indent=2))
 
-    def _cmd_runtime_run_ir(args):
-        manifest_path = Path(args.manifest)
-        inputs = _load_json_arg(getattr(args, "inputs", None), default={})
-        try:
-            result = run_ir_flow(args.flow, manifest_path=manifest_path, inputs=inputs)
-        except IrRunnerError as exc:
-            print(f"runtime run failed: {exc}", file=sys.stderr)
-            return 1
-        payload = {
-            "flow": args.flow,
-            "status": result.status,
-            "summary": result.summary or {},
-            "events": list(result.events),
-        }
-        print(json.dumps(payload, indent=2))
-        return 0 if result.status == "completed" else 1
-
     def _cmd_verify_semantic(args):
         if not args.plan or not args.spec:
             print("verify: --plan and --spec are required", file=sys.stderr)
@@ -444,6 +431,10 @@ def _build_parser() -> argparse.ArgumentParser:
         print(json.dumps(payload, indent=2))
         return 0 if result.status == "completed" else 1
 
+    register_compose_commands(sub)
+    register_iterate_commands(sub)
+    register_caps_commands(sub)
+
     sp_metrics = sub.add_parser("metrics", help="metrics tools")
     spm_sub = sp_metrics.add_subparsers(dest="mcmd")
     spm_dump = spm_sub.add_parser("dump", help="dump metrics window")
@@ -467,6 +458,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="JSON object with run inputs or @path to a JSON file",
     )
     runtime_run.set_defaults(func=_cmd_runtime_run_ir)
+
+    run_workflow_parser = runtime_sub.add_parser(
+        "run-workflow", help="Run a WorkflowPolicy through the minimal runtime"
+    )
+    run_workflow_parser.add_argument("--workflow", required=True, help="WorkflowPolicy JSON/YAML path")
+    run_workflow_parser.add_argument(
+        "--guard-decision",
+        action="append",
+        help="Guard decision in the form name=true|false (repeatable)",
+    )
+    run_workflow_parser.add_argument(
+        "--events",
+        nargs="+",
+        help="Additional events to append to the execution trace",
+    )
+    run_workflow_parser.add_argument("--format", choices=["json"], default="json", help="output format")
+    run_workflow_parser.set_defaults(func=_cmd_runtime_run_workflow)
 
     verify_parser = sub.add_parser("verify", help="Verification commands")
     verify_parser.add_argument("--plan", help="Path to pipeline plan (JSON/YAML)")
@@ -1431,6 +1439,61 @@ def _build_parser() -> argparse.ArgumentParser:
     register_simulate_command(sub)
 
     return parser
+
+
+def _cmd_runtime_run_ir(args):
+    manifest_path = Path(args.manifest)
+    inputs = _load_json_arg(getattr(args, "inputs", None), default={})
+    try:
+        result = run_ir_flow(args.flow, manifest_path=manifest_path, inputs=inputs)
+    except IrRunnerError as exc:
+        print(f"runtime run failed: {exc}", file=sys.stderr)
+        return 1
+    payload = {
+        "flow": args.flow,
+        "status": result.status,
+        "summary": result.summary or {},
+        "events": list(result.events),
+    }
+    print(json.dumps(payload, indent=2))
+    return 0 if result.status == "completed" else 1
+
+
+def _load_structured_file(path: Path) -> Mapping[str, Any]:
+    text = path.read_text(encoding="utf-8")
+    suffix = path.suffix.lower()
+    if suffix in {".yaml", ".yml"}:
+        if yaml is None:
+            raise RuntimeError("PyYAML is required to read YAML files")
+        payload = yaml.safe_load(text)
+    else:
+        payload = json.loads(text)
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{path}: expected mapping document")
+    return payload
+
+
+def _parse_guard_decisions(values: Iterable[str] | None) -> dict[str, bool]:
+    decisions: dict[str, bool] = {}
+    for raw in values or []:
+        if "=" not in raw:
+            continue
+        name, value = raw.split("=", 1)
+        decisions[name.strip()] = value.strip().lower() in {"1", "true", "yes", "on"}
+    return decisions
+
+
+def _cmd_runtime_run_workflow(args):
+    try:
+        workflow = _load_structured_file(Path(args.workflow))
+    except Exception as exc:
+        print(f"runtime run-workflow: failed to load workflow: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+    guard_decisions = _parse_guard_decisions(args.guard_decision)
+    trace = run_minimal_workflow(workflow, guard_decisions=guard_decisions, events=args.events or [])
+    print(json.dumps(trace, indent=2, ensure_ascii=False))
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
