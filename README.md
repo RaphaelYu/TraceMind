@@ -1,301 +1,86 @@
-# TraceMind — AI MAPE-K Autonomous Agent Framework
-
-TraceMind is a lightweight, event-sourced **autonomous agent runtime** that follows the
-**MAPE-K** loop: **Monitor → Analyze → Plan → Execute** over shared **Knowledge**.
-
-- **Event-Sourced Core** — every state change is an append-only fact (auditable by design).
-- **Static Flow Engine** — declarative flows (YAML/JSON) exportable to DOT/JSON for graphs.
-- **Policy via MCP** — select/update arms locally or over JSON-RPC with timeout & safe fallback.
-- **Smart Layer** — summarize / diagnose / plan / reflect with trace-linked spans.
-- **Ops-Ready** — REST `/api/*`, Prometheus `/metrics`, health `/healthz` `/readyz`.
-
----
-
-| AI Guidance Layer | Formal Logic Core | Multi-Runtime Execution |
-| --- | --- | --- |
-| Summarize / diagnose / plan with trace-linked context | Static DSL → Flow IR pipeline (lint, plan, compile) plus policy guards | PythonEngine for authoring parity; ProcessEngine bridges JSON-RPC runtimes (ROS / RTOS / simulators) |
-| Keeps humans and agents aligned around actionable insights | Offline verification catches structural and schema issues before deployment | Online verification via `tm runtime run` / `tm verify online` for smoke and device tests |
-| **Value:** shorten investigation + iteration | **Value:** predictable, auditable behaviour | **Value:** target-specific autonomy with observability |
-
----
-
-## ✨ Features
-
-* **Event Sourcing Core**: append-only event store powered by the Binary Segment Log (`tm/storage/binlog.py`). JSONL and SQLite remain optional adapters planned for future expansion.
-* **DDD Structure**: clear separation of domain, application, and infrastructure layers.
-* **Pipeline Engine**: field-driven processing (Plan → Rule → Step), statically analyzable.
-* **Tracing & Reflection**: every step produces auditable spans.
-* **Smart Layer**:
-
-  * Summarize: human-readable summaries of recent events.
-  * Diagnose: heuristic anomaly detection with suggested actions.
-  * Plan: goal → steps → optional execution.
-  * Reflect: postmortem reports and threshold recommendations.
-* **Visualization**:
-
-  * Static: export DOT/JSON diagrams of flows.
-  * Dynamic: SSE dashboard with live DAG and insights panel.
-* **Protocols**:
-
-  * MCP (Model Context Protocol) integration (JSON-RPC 2.0) – see the
-    [latest specification](https://modelcontextprotocol.io/specification/latest)
-    and the [community GitHub org](https://github.com/modelcontextprotocol).
-    Example flow recipe:
-    ```python
-    from tm.recipes.mcp_flows import mcp_tool_call
-
-    spec = mcp_tool_call("files", "list", ["path"])
-    runtime.register(_SpecFlow(spec))
-    ```
-* **Interfaces**:
-
-  * REST API: `/api/commands/*`, `/api/query/*`, `/agent/chat`.
-  * Metrics: `/metrics` (Prometheus format).
-  * Health checks: `/healthz`, `/readyz`.
-
----
-
-## 📂 Architecture (ASCII Overview)
-
-```
-                +---------------------+
-                |  REST / CLI Clients |
-                +----------+----------+
-                           |
-                   [DSL / Policy Sources]
-                           |
-                 +---------v----------+
-                 |   Offline Verify   |
-                 | (lint/plan/compile)|
-                 +---------+----------+
-                           |
-                 +---------v----------+
-                 | Flow IR + Manifest |
-                 +----+---------+-----+
-                      |         |
-      +---------------+         +----------------+
-      |                         |                |
-+-----v-----+         +---------v--------+     +-v----------------+
-|Event Store|<--------| PythonEngine DEV |     | ProcessEngine REP |
-+-----+-----+         +------------------+     +---------+---------+
-      |                                          JSON-RPC Executors
-      |                                               (ROS / RTOS / Sim / HW)
-      v
-+-----+-----+
-| Observability|
-|  & AI Layer  |
-+-------------+
-```
-
----
-
-## 📚 Documentation
-
-- [Flow & policy recipes](docs/recipes-v1.md)
-- [Helpers reference](docs/helpers.md)
-- [Policy lifecycle & MCP integration](docs/policy.md)
-- [Storage configuration](docs/storage.md)
-- [Validation & simulation workflows](docs/validation.md)
-- [Runtime engines & IR runner](docs/runtime.md)
-
-### Scale & Reliability
+# TraceMind Charter
 
-- [Scale & Reliability guide](docs/scale-and-reliability.md)
-- [Queue retries & DLQ](docs/howto/retries_dlq.md)
+## Mission
 
-### Safety & Governance
+TraceMind is not a product sprint; it is an **independent, general, governable AI assistance core**.
+Its sole responsibility is to operate strictly within a frozen semantic specification that defines
+the system’s artifact model, composition constraints, policy guardrails, verification rules,
+runtime responsibilities, and governance loops.
 
-- [Governance overview](docs/governance.md)
-- [Guardrails](docs/guard.md)
-- [Human approvals](docs/hitl.md)
+This specification is the single source of truth for the system.
+Every feature, CLI command, artifact, and test must be directly traceable to that specification.
+Any behavior that cannot be expressed through the canonical artifacts, enforced policies,
+reference workflows, and explicit approval loops is considered invalid by design.
 
----
+## Core Principles (from 01. Concepts & Roles)
 
-## 🚀 Quick Start
+1. **AI has no execution authority.** AI may only propose `IntentSpec` or `PatchProposal`; it never directly runs capability code.
+2. **Everything is verifiable.** Every automation decision must survive schema validation, semantic checks, or monitoring counters (traces and counterexamples must exist).
+3. **Semantics before implementation.** We care about what the system is allowed to do, not how the code does it; the codebase simply implements the artifacts.
+4. **Artifacts over code.** Artifacts (Intent, Capability, Policy, Workflow, Trace, Report, Patch) are the system's ground truth.
+5. **UI/CLI are not truth sources.** Interfaces only create, modify, or inspect artifacts; truth comes from the validated artifacts plus runtime evidence.
 
-```bash
-# Install (use venv if you like)
-pip install -U "git+https://github.com/RaphaelYu/TraceMind.git@v1.0.4"
+## Artifact Doctrine (02. Artifact Overview)
 
-# Version & pipeline health
-tm --version
-tm pipeline analyze
+TraceMind defines a canonical artifact set (`IntentSpec`, `CapabilitySpec`, `PolicySpec`, `WorkflowPolicy`, `ExecutionTrace`, `IntegratedStateReport`, `PatchProposal`). These artifacts must be serializable (YAML/JSON), verifiable (schema + deterministic rules), composable, auditable, and execution-decoupled. The lifecycle flows from declaration to intent, composition, verification, runtime execution, judgment, and then iteration. Artifacts are immutable; updates require versioned replacements. Dependencies are strictly acyclic—no runtime mutates a capability spec, and traces cannot influence intents.
 
-# Scaffold & run a minimal flow
-tm init demo
-cd demo
-tm run flows/hello.yaml -i '{"name":"world"}'
+## Phase 0—Spec Compliance (Tasks 0.1 & 0.2)
 
-# Validate and export the flow graph
-mkdir -p out
-tm pipeline export-dot --out-rules-steps out/rules.dot --out-step-deps out/steps.dot
+1. **Spec-to-code mapping** (`docs/spec/spec-to-code-map.md`): enumerate every core module, name the spec chapter it implements (02–07), describe which artifact it produces/consumes, and flag any implicit behavior that lacks a spec anchor; violations are disallowed.
+2. **Reference Workflow review** (`docs/spec/reference-workflow-review.md`): exercise the Reference Workflow artifacts—capabilities, intent, policy, violation, patch—and document whether the spec vocabulary is sufficient to express every step without “dark knowledge,” missing fields, or semantic contradiction.
 
-# Compile to Flow IR and run smoke tests
-tm dsl compile flows/ --emit-ir --out out
-tm runtime run --manifest out/manifest.json --flow flows.hello
+## Reference Workflow Blueprint (12. Reference Workflow)
 
-# Execute the same IR via a JSON-RPC executor (mock ProcessEngine)
-tm --engine proc --executor-path tm/executors/mock_process_engine.py \
-  runtime run --manifest out/manifest.json --flow flows.hello
+The reference workflow illustrates the minimum closed loop that TraceMind must run. Its abstract story: produce a result, validate it, and ensure unauthorized external writes never happen. The declared capabilities are:
 
-# One-shot online verification (recompile + run)
-tm verify online --flow flows.hello --sources flows/ --out out
+* `compute.process`: deterministic internal computation that emits `computation.completed`.
+* `validate.result`: validation step that produces `result.validated`.
+* `external.write`: side-effectful write guarded by approvals and irreversible safety contracts.
 
-# Policy: list / verify / (optional) update
-python3 - <<'PY'
-import asyncio
-from tm.policy.adapter import PolicyAdapter
-from tm.policy.local_store import LocalPolicyStore
+A PolicySpec defines the state schema (`computation.completed`, `result.validated`, `external.write.performed`) plus invariants (never write externally without validation) and a liveness requirement (eventually `result.validated`). The IntentSpec asks to achieve `result.validated` under safety constraints. The composer must reject governance-violating candidate workflows, expose deterministic explanations, and only emit workflows that pass verification. The workflow must demonstrate generation, validation, execution, violation detection, patch proposal, approval, and a rerun with a corrected policy/artifact path.
 
+## Phase 1 Scope—Minimal Implementations
 
-async def main():
-    arms = {
-        "maint.default": {"threshold": 0.72},
-        "maint.backup": {"threshold": 0.6},
-    }
-    store = LocalPolicyStore(arms=arms)
-    adapter = PolicyAdapter(mcp=None, local=store)
-    print("arms:", await adapter.list_arms())
-    baseline = await adapter.get("maint.default")
-    print("before:", baseline)
-    updated = await adapter.update("maint.default", {"threshold": 0.85})
-    print("after:", updated)
+1. **Artifact Schemas (02)**: Define JSON/YAML schemas for each artifact and provide a validation API that rejects invalid structures; no business logic resides in the schema layer.
+2. **Capability Catalog (03)**: Support capability registration, schema validation, and catalog queries. Each capability spec enumerates inputs, outputs, configuration schema, declared event types, state extractors, and safety contracts (including determinism and rollback capabilities).
+3. **Intent Validator (04)**: Validate that intents describe desired goals, constraints, preferences, and context refs without mention of steps, rules, or capability IDs; report over/under-constrained failures.
+4. **Composer v0 (07)**: Run the Reference Workflow composer that combines IntentSpec + capability catalog + PolicySpec to deterministically emit ranked `WorkflowPolicy` candidates with explanations, summary of discarded options, and deterministic ordering; reject plans that violate invariants or safety contracts.
+5. **Verifier v0 (08)**: Provide multi-layer verification (schema, semantic, static policy, simulation), detect violations, and emit counterexamples (minimal paths with capability actions) for any unsafe workflow; monitoring hooks must replay traces.
+6. **Runtime v0 (09)**: Execute workflows step-by-step (guards, sequential/parallel flows) without decision-making, produce immutable `ExecutionTrace` events, and feed monitors/violation reports to the verifier. Runtime strictly follows the workflow, does not modify policy, never infers missing inputs, and records every guard/step outcome.
+7. **Iteration Loop v0 (10)**: When violations or deviations occur, emit `IntegratedStateReport`, generate `PatchProposal` entries (source, target, rationale, expected effect), enforce validation/simulation/approval before applying a higher-version artifact, and rerun the reference workflow; governance prohibits runtime self-modification, enforces approvals, version DAGs, and rollback via workflows traced like any other artifact.
 
+## Unified Redlines
 
-asyncio.run(main())
-PY
-```
+* No business logic or external execution in this phase.
+* AI never builds workflows directly—it only proposes intents or patches.
+* Runtime does not negotiate, decide policies, or fix violations.
+* CLI/GUI actions cannot bypass artifact-based validation.
+* Features must map to a spec chapter before being implemented (“spec-first”).
 
-### DSL Tooling (WDL / PDL)
+## Governance Boundaries (from 10.8)
 
-TraceMind ships a DSL layer for workflows (WDL) and policies (PDL). Install the optional extras once (`pip install networkx PyYAML`) and you can lint/plan/compile/testgen directly from the repo:
+The spec codifies explicit governance and operational boundaries so TraceMind never drifts toward ad-hoc behavior:
 
-```bash
-# Lint individual files or directories
-python -m tm.cli dsl lint examples/dsl/opcua
+* **Runtime stovepipes**: Runtime only executes declared `WorkflowPolicy` steps, never mutates policies or infers missing inputs, and strictly obeys guard semantics (approval, rate-limit, isolation) before executing a capability (`docs/semantic-spec-v0/09-runtime-and-execution.md`).
+* **Artifact immutability**: Every artifact (Intent, Capability, Policy, Workflow, Trace, Report, Patch) is immutable and versioned; updates happen through governance-approved PatchProposals that produce new artefact versions (`docs/semantic-spec-v0/02-artifact-overview.md`, `10-iteration-and-governance.md`).
+* **AI scope lock**: AI cannot execute capabilities or Runtime; it can only emit IntentSpecs or PatchProposals subject to validation and approval (`docs/semantic-spec-v0/01-concepts-and-roles.md`, `10-iteration-and-governance.md`).
+* **No spontaneous evolution**: Changes can only originate from explicit violations, degradations, intent/capability/policy updates, and must proceed through validation, simulation, approval, apply, and observe stages documented in the reference workflow (`docs/semantic-spec-v0/10-iteration-and-governance.md`).
+* **Policy-first permissioning**: Nothing happens without a policy allowing it—capability activations, guard approvals, liveness expectations, invariants, and approvals all derive from the PolicySpec schema; any deviation is treated as a violation (`docs/semantic-spec-v0/05-policy-specification.md`, `13-acceptance-criteria.md`).
 
-# Compile to runtime artifacts (writes out/flows + out/policies + out/triggers.yaml)
-python -m tm.cli dsl compile examples/dsl/opcua --out out/dsl --force
+## Acceptance Criteria Summary (13. Acceptance Criteria)
 
-# Generate coverage fixtures (≥6 cases per workflow by default)
-python -m tm.cli dsl testgen examples/dsl/opcua --out examples/fixtures
+* **Artifact level**: intents/capabilities/policies/workflows/traces/reports must all be schema-validated, immutable, and free of hidden semantics.
+* **Composer**: legality, determinism, explainability, and diagnosable failure reasons.
+* **Verification & monitoring**: static refusals, simulation counterexamples, runtime invariant catching, consistent judgments.
+* **Runtime**: executes only verified workflows, traces every unit, exposes only declared concurrency, and generates replayable traces.
+* **Iteration & governance**: no spontaneous evolution, every change backed by a `PatchProposal`, versioned rollout with rollback paths, AI limited to proposals.
+* **UI/CLI parity**: CLI or UI actions are semantically equivalent, avoid UI-only shortcuts, and keep drafts isolated.
+* **Reference Workflow**: full intent → composer → execution → violation → patch → rerun loop; violations reproducible and patched workflows pass.
 
-# Validate trigger configuration
-python -m tm.cli triggers validate out/dsl/triggers.yaml
+## Final Admission Questions
 
-# Launch daemon with triggers (requires networkx / croniter)
-export TM_ENABLE_DAEMON=1
-python -m tm.cli daemon start --enable-triggers --triggers-config out/dsl/triggers.yaml --queue-dir tmp/queue --idempotency-dir tmp/idempotency --workers 1
+1. Can every line of code cite the spec chapter and artifact it implements?
+2. Is the Reference Workflow fully reproducible with the declared artifacts?
+3. Is there any pathway that bypasses verification and executes without policy enforcement?
 
-# Run the compiled flow with the example inputs
-python -m tm.cli run out/dsl/flows/plant-monitor.yaml -i '@examples/dsl/opcua/input.json'
-```
-
-For CI-style smoke tests, use `scripts/validate_dsl_examples.sh` which performs the lint/plan/compile/testgen/run loop end to end (it respects `$PYTHON` and checks for optional dependencies such as `networkx`). The generated artifacts carry source metadata so downstream tools can trace decisions back to DSL files.
-
-### Always-on Agent quickstart
-
-Reuse the copy/paste examples in the validation guide to keep agents continuously self-checking:
-
-- [`docs/validation.md`](docs/validation.md) — `tm flow lint`, `tm flow plan`, `tm validate`, `tm simulate`.
-- [`scripts/validate_examples.sh`](scripts/validate_examples.sh) — end-to-end smoke test that runs as part of CI.
-
-Need to configure persistence for production?  See [`docs/storage.md`](docs/storage.md) for KStore URLs and fallback behaviour.
-
-### Background daemon (opt-in)
-
-TraceMind can run flows in the background via a daemon + queue worker loop. Enable it explicitly:
-
-```bash
-export TM_ENABLE_DAEMON=1
-export TM_FILE_QUEUE_V2=1  # recommended for durable queue semantics
-```
-
-High-level workflow:
-
-```bash
-# Start the daemon (spawns workers under the hood)
-tm daemon start --queue-dir data/queue --idempotency-dir data/idempotency
-
-# Enqueue work without blocking
-tm run flows/hello.yaml --detached -i '{"name":"async"}'
-
-# Check status (human readable or JSON)
-tm daemon ps
-tm daemon ps --json | jq .
-
-# Stop the daemon gracefully (forces after timeout unless --no-force)
-tm daemon stop
-
-# Start the daemon with triggers enabled
-tm daemon start --enable-triggers --triggers-config triggers.yaml
-```
-
-Triggers can also run without the daemon:
-
-```bash
-tm triggers init             # scaffold config
-tm triggers validate         # lint configuration
-tm triggers run --config triggers.yaml
-```
-
-See [`docs/daemon.md`](docs/daemon.md) for configuration details, troubleshooting tips, and a deeper explanation of queue/idempotency directory layout. CI runs a smoke script (`scripts/daemon_smoke.sh`) to ensure the loop stays healthy. Trigger design, adapter reference, and templates live in [`docs/triggers.md`](docs/triggers.md).
-
-### Run in container
-
-```bash
-docker build -t trace-mind ./docker
-
-docker run --rm -it \
-  --read-only \
-  -v $(pwd)/data:/data \
-  -p 8080:8080 \
-  trace-mind
-```
-
-
-### Scale & Reliability demo
-
-See the [Scale & Reliability guide](docs/scale-and-reliability.md) for full context. The commands below can be pasted into a shell to exercise the worker pool, queue stats, and DLQ tooling.
-
-```bash
-# Start workers
-TM_LOG=info tm workers start -n 4 --queue file --lease-ms 30000 &
-
-# Enqueue 1000 CPU-light tasks
-for i in {1..1000}; do tm enqueue flows/hello.yaml -i '{"name":"w'$i'"}'; done
-
-# Live queue stats
-tm queue stats
-
-# Retry/DLQ demo — simulate failures by input flag/env within your step
-export FAIL_RATE=0.05
-# (run some tasks…)
-
-tm dlq ls | head        # Inspect
-# Requeue a subset by id/prefix/predicate (implementation-specific)
-tm dlq requeue <task-id>
-
-# Graceful drain
-tm workers stop
-```
-
----
-
-## 🧩 Roadmap
-
-* [ ] More connectors (file bridge, http bridge, kafka bridge)
-* [ ] Richer dashboard with interactive actions
-* [ ] Adaptive thresholds in Reflector
-* [ ] Optional LLM integration for natural summaries
-
----
-
-## 📜 License
-
-MIT (for personal and experimental use)
-
-Quickstart:
-tm init demo --template minimal
-cd demo && tm run flows/hello.yaml -i '{"name":"world"}'
-More details: docs/quickstart.md
+Failure to answer any of these in the affirmative means TraceMind has not yet met the charter. The charter’s final warning endures: **TraceMind’s goal is not to be convenient, it is to be uncontrollable; constraints come before capabilities.**
