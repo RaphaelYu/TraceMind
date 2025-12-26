@@ -1,97 +1,151 @@
-# TraceMind — Governable AI Assistance Core
+# TraceMind — Governed Agent Runtime + Design-Time Verification Toolchain
 
-Built to keep AI contributions **accountable, auditable, and bound by explicit governance**.
+TraceMind helps you build AI-assisted systems that **run as agents**, but **do not drift**.
+It separates **proposal** from **execution**, and treats governance as a first-class product feature.
 
-TraceMind does not try to make AI smarter.
-It exists to make AI-assisted systems **safe by design**.
+TraceMind is designed for scenarios where a non-technical customer can express intent,
+and the system can iteratively compile that intent into runnable units **without violating boundaries**.
 
 ---
 
 ## What Problem TraceMind Solves
 
-Modern AI-assisted systems tend to drift beyond their intended boundaries.
-They generate opaque decisions, execute actions without sufficient checks, and adapt in ways that are difficult to audit, explain, or roll back.
+AI-assisted products often fail in the same ways:
 
-TraceMind is designed to stop that drift.
+- The system executes actions without explicit checks.
+- “Intent” is ambiguous and becomes a moving target.
+- Runtime behavior drifts over time and becomes hard to audit or roll back.
+- Multi-step workflows become opaque and ungovernable.
 
-It provides a governance-first core where **every proposal, decision, and execution is explicit, reviewable, and constrained**.
-TraceMind is useful wherever AI participates in product workflows, operational processes, compliance pipelines, risk controls, or any complex multi-step procedure that must remain within clearly defined limits.
+TraceMind addresses this by introducing a strict workflow lifecycle:
+
+> **Intent → Compile → Verify → Run → Trace → Diagnose → Patch (Approved) → Iterate**
+
+The goal is not to make AI “smarter”.
+The goal is to make AI-enabled systems **governable, auditable, and safe-by-design**.
+
+---
+
+## Core Product Idea: Two Planes
+
+TraceMind has two planes that work together:
+
+### 1) Design-Time Plane (Offline / Iteration)
+
+This is where correctness and “one-meaning” intent are enforced.
+
+- Users (or AI as a helper) produce an **Intent**: what should happen (goals, constraints, preferences).
+- The system compiles Intent + Plugins + Policy into a runnable **WorkflowPolicy**.
+- Verification rejects plans that violate policy and produces explanations/counterexamples.
+- Improvements happen through explicit, versioned **PatchProposals** and approvals.
+
+Design-time is where you prevent drift before anything runs.
+
+### 2) Runtime Plane (Online / Execution)
+
+This is where the system runs as **agents**.
+
+- An **Agent** is a runtime module assembled from:
+  - declared plugins (capabilities),
+  - a verified workflow policy,
+  - enforced governance policy.
+- The runtime executes the verified workflow and emits immutable **traces** as evidence.
+- Multiple agents can be connected into an **agent network** via events/messages, while still enforcing local and shared policies.
+
+Runtime is where you execute safely and produce evidence.
+
+---
+
+## Key Terms (Product Definitions)
+
+### Artifact
+An artifact is a versioned, validated, auditable record (YAML/JSON) that the system treats as truth.
+Artifacts are the backbone of iteration and governance: no hidden state, no “magic decisions”.
+
+Typical artifacts include (names may evolve as the project stabilizes):
+- Intent (goal/constraints/preferences)
+- Policy (invariants/guards/liveness)
+- Capability specs (what plugins can do + side-effects)
+- WorkflowPolicy (compiled runnable unit)
+- Execution trace (what actually happened)
+- Patch proposal (how to change safely)
+
+### Agent
+An agent is **not** “autonomous” in the sense of self-authorizing or self-expanding.
+In TraceMind, an agent is a runtime node that executes **verified** workflows under explicit policy.
+
+### Plugin / Capability
+A plugin declares what it can do, including inputs/outputs, emitted events, extracted state, and side-effects.
+Undeclared behaviors are treated as non-existent.
+
+### Policy
+Policy defines enforceable boundaries:
+- what must never happen,
+- what requires guards/approval,
+- what must eventually happen.
 
 ---
 
 ## What TraceMind Is / Is Not
 
 **TraceMind is:**
-
-* a governable AI assistance core that separates proposal from execution
-* a system for composing, verifying, and governing artifact-driven workflows
-* policy- and evidence-first by design, with every action traceable and replayable
+- a governed agent runtime + an offline verification toolchain
+- a workflow system where proposals are compiled and verified before execution
+- evidence-first: every execution is traceable and replayable
 
 **TraceMind is not:**
-
-* an autonomous agent runtime
-* a prompt orchestration framework
-* a system where AI directly executes actions
-
----
-
-## How TraceMind Works
-
-```Intent → Composition → Verification → Execution
-                          ↓
-                    Trace & Governance
-```
-
-AI expresses **intent**—what should be achieved, not how to do it.
-The system composes candidate workflows from declared capabilities and policies, verifies them against mandatory constraints, and only then allows execution.
-
-Execution always produces immutable traces.
-Those traces feed back into governance so violations are visible, explainable, and can trigger **explicitly approved** changes—never silent adaptation.
+- a self-authorizing autonomous agent system
+- a “prompt orchestration” tool that lets an LLM execute actions directly
+- a runtime that silently adapts or changes rules without approval
 
 ---
 
-## Core Ideas
+## How a Typical “Completion” Looks (End-to-End)
 
-* **AI proposes; the system decides.**
-* **Artifacts are the source of truth.** Nothing happens unless an artifact allows it.
-* **Policies are mandatory boundaries, not optional guidelines.**
-* **Runtime executes verified plans; it does not reason about intent.**
-* **Every action leaves evidence for auditing and rollback.**
+1) A customer expresses a requirement (often ambiguous).
+2) AI can help translate it into an **Intent** draft.
+3) Intent goes through **automatic validation**:
+   - schema validity
+   - semantic validity (no hidden execution instructions)
+   - feasibility pre-check (is there a governed solution?)
+4) The system compiles a **WorkflowPolicy** from declared plugins + policies.
+5) Verification runs:
+   - policy checks
+   - bounded simulation / counterexamples (as supported)
+6) Runtime executes the verified workflow as an agent.
+7) Execution emits **trace** and an integrated state report.
+8) If results drift from expectations, the system generates a **PatchProposal**.
+9) PatchProposal must be approved and versioned before affecting runtime.
 
 ---
 
 ## Repository Structure (as of today)
 
-```docs/        Design notes and the evolving semantic foundation
-tm/          Core modules: artifacts, capabilities, composition, verification, governance, CLI
-tests/       Validation suites for artifacts, workflows, and governance behavior
-examples/    Minimal reference flows exercising the closed governance loop
-```
-
-The repository reflects an architecture-locking phase rather than a finished product.
+- `tm/` — core runtime modules and tooling (artifacts, capabilities, composition, verification, governance)
+- `docs/` — design notes and the evolving semantic foundation
+- `examples/` — minimal reference flows to exercise the closed loop
+- `tests/` — validation and governance tests
 
 ---
 
-## Development Status & Roadmap
+## Development Status (Phase 1)
 
-TraceMind is in an early stage where the **semantic foundation is being fixed before feature expansion**.
+TraceMind is in a phase where the system is being unified into a complete workflow:
 
-Current focus areas include:
+- preserving a real runtime agent architecture,
+- integrating a design-time compiler/verifier loop,
+- making Intent validation and governance explicit and deterministic.
 
-* defining and validating canonical artifacts
-* enforcing policy-driven composition and verification
-* making governance and iteration explicit and deterministic
-
-Breaking changes are expected while these foundations are finalized.
-This project prioritizes **correctness and control** over convenience or speed.
+Breaking changes are expected while the semantic foundation is finalized.
 
 ---
 
-## For Contributors and Integrators
+## Contribution Rules (Non-Negotiable)
 
-TraceMind enforces strict boundaries by design:
+- Do not let AI trigger runtime actions directly.
+- Do not execute side-effectful plugins without policy verification and required guards.
+- Every feature must map to an explicit artifact or rule.
+- If you cannot explain how a change is governed, do not implement it.
 
-* Do not add execution logic without policy verification.
-* Do not allow AI to trigger runtime actions directly.
-* Every feature must map to an explicit artifact or rule.
-* If you cannot explain how a change is governed, do not implement it.
+> TraceMind optimizes for governance, not autonomy.  
+> Constraints come before capabilities.
