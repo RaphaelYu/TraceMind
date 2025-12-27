@@ -1,0 +1,1 @@
+{"intent_id": "intent.reference", "version": "1.0.0", "goal": {"type": "achieve", "target": "result.validated"}}

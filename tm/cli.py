@@ -41,17 +41,30 @@ from tm.triggers.runner import run_triggers
 from tm.runtime import configure_engine, run_ir_flow, IrRunnerError
 from tm.dsl import compile_paths, CompileError
 from tm.runtime.config import RuntimeConfigError, load_runtime_config
-from tm.runtime.minimal import run_workflow as run_minimal_workflow
+from tm.runtime.workflow_executor import (
+    WorkflowExecutionError,
+    WorkflowVerificationError,
+    execute_workflow,
+)
+from tm.verifier import WorkflowVerifier
+from tm.monitoring.report import (
+    IntegratedStateReportError,
+    build_integrated_state_report,
+)
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
 from tm.cli.dsl import register_dsl_commands
 from tm.cli.flow import register_flow_commands
 from tm.cli.validate import register_validate_command
+from tm.cli.fmt import register_fmt_command
 from tm.cli.simulate import register_simulate_command
 from tm.cli.caps import register_caps_commands
+from tm.cli.intent import register_intent_commands
 from tm.cli.compose import register_compose_commands
 from tm.cli.iterate import register_iterate_commands
+from tm.cli.patch import register_patch_commands
+from tm.cli.rerun import register_rerun_command
 from tm.verify import (
     Explorer,
     TraceMindAdapter,
@@ -433,7 +446,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     register_compose_commands(sub)
     register_iterate_commands(sub)
-    register_caps_commands(sub)
+    register_patch_commands(sub)
+    register_rerun_command(sub)
 
     sp_metrics = sub.add_parser("metrics", help="metrics tools")
     spm_sub = sp_metrics.add_subparsers(dest="mcmd")
@@ -460,9 +474,18 @@ def _build_parser() -> argparse.ArgumentParser:
     runtime_run.set_defaults(func=_cmd_runtime_run_ir)
 
     run_workflow_parser = runtime_sub.add_parser(
-        "run-workflow", help="Run a WorkflowPolicy through the minimal runtime"
+        "run-workflow",
+        help="Run a WorkflowPolicy through the governance-bound executor",
+        description="Execute a verified workflow policy, honor policy guards, and emit an ExecutionTrace.",
     )
     run_workflow_parser.add_argument("--workflow", required=True, help="WorkflowPolicy JSON/YAML path")
+    run_workflow_parser.add_argument("--policy", required=True, help="PolicySpec JSON/YAML path")
+    run_workflow_parser.add_argument(
+        "--capabilities",
+        nargs="+",
+        required=True,
+        help="Capability spec JSON/YAML paths covering referenced capabilities",
+    )
     run_workflow_parser.add_argument(
         "--guard-decision",
         action="append",
@@ -476,6 +499,23 @@ def _build_parser() -> argparse.ArgumentParser:
     run_workflow_parser.add_argument("--format", choices=["json"], default="json", help="output format")
     run_workflow_parser.set_defaults(func=_cmd_runtime_run_workflow)
 
+    report_state_parser = runtime_sub.add_parser(
+        "report-state",
+        help="Describe the integrated semantic state inferred from an ExecutionTrace",
+        description="Combine a validated WorkflowPolicy, PolicySpec, and capability catalog with an ExecutionTrace to emit an IntegratedStateReport with evidence/blame.",
+    )
+    report_state_parser.add_argument("--workflow", required=True, help="WorkflowPolicy JSON/YAML path")
+    report_state_parser.add_argument("--policy", required=True, help="PolicySpec JSON/YAML path")
+    report_state_parser.add_argument(
+        "--capabilities",
+        nargs="+",
+        required=True,
+        help="Capability spec JSON/YAML paths that describe state extractors/events",
+    )
+    report_state_parser.add_argument("--trace", required=True, help="ExecutionTrace JSON/YAML path")
+    report_state_parser.add_argument("--format", choices=["json"], default="json", help="output format")
+    report_state_parser.set_defaults(func=_cmd_runtime_report_state)
+
     verify_parser = sub.add_parser("verify", help="Verification commands")
     verify_parser.add_argument("--plan", help="Path to pipeline plan (JSON/YAML)")
     verify_parser.add_argument("--spec", help="Path to verification spec (JSON/YAML)")
@@ -486,6 +526,18 @@ def _build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format")
     verify_sub = verify_parser.add_subparsers(dest="vcmd")
     verify_parser.set_defaults(func=_cmd_verify_semantic)
+
+    workflow_parser = verify_sub.add_parser("workflow", help="verify WorkflowPolicy artifacts")
+    workflow_parser.add_argument("--workflow", required=True, help="WorkflowPolicy JSON/YAML path")
+    workflow_parser.add_argument("--policy", required=True, help="PolicySpec JSON/YAML path")
+    workflow_parser.add_argument(
+        "--capabilities",
+        nargs="+",
+        required=True,
+        help="Capability spec JSON/YAML paths",
+    )
+    workflow_parser.add_argument("--json", action="store_true", help="emit JSON counterexample")
+    workflow_parser.set_defaults(func=_cmd_verify_workflow)
 
     verify_online = verify_sub.add_parser(
         "online",
@@ -1436,7 +1488,10 @@ def _build_parser() -> argparse.ArgumentParser:
     register_dsl_commands(sub)
     register_flow_commands(sub)
     register_validate_command(sub)
+    register_fmt_command(sub)
     register_simulate_command(sub)
+    register_caps_commands(sub)
+    register_intent_commands(sub)
 
     return parser
 
@@ -1457,6 +1512,38 @@ def _cmd_runtime_run_ir(args):
     }
     print(json.dumps(payload, indent=2))
     return 0 if result.status == "completed" else 1
+
+
+def _cmd_verify_workflow(args):
+    try:
+        workflow = _load_structured_file(Path(args.workflow))
+        policy = _load_structured_file(Path(args.policy))
+        capabilities = [_load_structured_file(Path(cap)) for cap in args.capabilities]
+    except Exception as exc:
+        print(f"verify workflow: failed to load inputs: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+    report = WorkflowVerifier(policy=policy, capabilities=capabilities).verify(workflow)
+    if report.success:
+        payload = {"success": True}
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print("workflow verification succeeded")
+        return 0
+
+    counterexample = report.counterexample or {}
+    payload = {"success": False, "counterexample": counterexample}
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print("workflow verification failed")
+        print(f"violated invariant: {counterexample.get('violated_invariant')}")
+        print(f"condition: {counterexample.get('condition')}")
+        print("trace:")
+        for step in counterexample.get("steps", []):
+            print(f"  {step.get('step_id')} ({step.get('capability_id')}) -> {step.get('state_snapshot')}")
+    return 1
 
 
 def _load_structured_file(path: Path) -> Mapping[str, Any]:
@@ -1486,13 +1573,63 @@ def _parse_guard_decisions(values: Iterable[str] | None) -> dict[str, bool]:
 def _cmd_runtime_run_workflow(args):
     try:
         workflow = _load_structured_file(Path(args.workflow))
+        policy = _load_structured_file(Path(args.policy))
+        capabilities = [_load_structured_file(Path(cap)) for cap in args.capabilities]
     except Exception as exc:
-        print(f"runtime run-workflow: failed to load workflow: {exc}", file=sys.stderr)
+        print(f"runtime run-workflow: failed to load inputs: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
     guard_decisions = _parse_guard_decisions(args.guard_decision)
-    trace = run_minimal_workflow(workflow, guard_decisions=guard_decisions, events=args.events or [])
+    try:
+        trace = execute_workflow(
+            workflow,
+            policy=policy,
+            capabilities=capabilities,
+            guard_decisions=guard_decisions,
+            events=args.events or [],
+        )
+    except WorkflowVerificationError as exc:
+        counterexample = exc.report.counterexample or {}
+        payload = {"success": False, "counterexample": counterexample}
+        if args.format == "json":
+            print(json.dumps(payload, indent=2))
+        else:
+            print("workflow verification failed")
+            print(f"violated invariant: {counterexample.get('violated_invariant')}")
+            print(f"condition: {counterexample.get('condition')}")
+            print("trace:")
+            for step in counterexample.get("steps", []):
+                print(f"  {step.get('step_id')} ({step.get('capability_id')}) -> {step.get('state_snapshot')}")
+        return 1
+    except WorkflowExecutionError as exc:
+        print(f"runtime run-workflow: {exc}", file=sys.stderr)
+        raise SystemExit(1)
     print(json.dumps(trace, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _cmd_runtime_report_state(args):
+    try:
+        workflow = _load_structured_file(Path(args.workflow))
+        policy = _load_structured_file(Path(args.policy))
+        capabilities = [_load_structured_file(Path(cap)) for cap in args.capabilities]
+        trace = _load_structured_file(Path(args.trace))
+    except Exception as exc:
+        print(f"runtime report-state: failed to load inputs: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+    try:
+        report = build_integrated_state_report(
+            trace,
+            workflow=workflow,
+            policy=policy,
+            capabilities=capabilities,
+        )
+    except IntegratedStateReportError as exc:
+        print(f"runtime report-state: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
+    print(json.dumps(report, indent=2, ensure_ascii=False))
     return 0
 
 

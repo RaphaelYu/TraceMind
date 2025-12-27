@@ -13,7 +13,7 @@ except ModuleNotFoundError:
     yaml = None
 
 from tm.artifacts import ArtifactValidationError, validate_capability_spec
-from tm.caps import CapabilityAlreadyExists, CapabilityCatalog
+from tm.caps import CapabilityAlreadyExists, CapabilityCatalog, CapabilityNotFound
 
 
 def register_caps_commands(subparsers: _SubParsersAction) -> None:
@@ -29,6 +29,11 @@ def register_caps_commands(subparsers: _SubParsersAction) -> None:
     list_parser = sub.add_parser("list", help="list registered capabilities")
     list_parser.add_argument("--catalog", help="Catalog file path (default: ~/.trace-mind/capabilities.json)")
     list_parser.set_defaults(func=_cmd_caps_list)
+
+    show_parser = sub.add_parser("show", help="show a registered capability spec")
+    show_parser.add_argument("--catalog", help="Catalog file path (default: ~/.trace-mind/capabilities.json)")
+    show_parser.add_argument("capability_id", help="Capability identifier")
+    show_parser.set_defaults(func=_cmd_caps_show)
 
     validate_parser = sub.add_parser("validate", help="validate a capability spec file")
     validate_parser.add_argument("spec", help="Path to capability YAML/JSON")
@@ -87,6 +92,16 @@ def _cmd_caps_list(args: argparse.Namespace) -> None:
         return
     for entry in entries:
         print(f"{entry.capability_id} ({entry.spec.get('version', 'unknown')})")
+
+
+def _cmd_caps_show(args: argparse.Namespace) -> None:
+    catalog = CapabilityCatalog(path=_resolve_catalog_path(args.catalog))
+    try:
+        spec = catalog.get(args.capability_id)
+    except CapabilityNotFound as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1)
+    print(json.dumps(spec, indent=2, ensure_ascii=False))
 
 
 def _cmd_caps_validate(args: argparse.Namespace) -> None:

@@ -121,7 +121,7 @@ _SAFETY_CONTRACT_SCHEMA: Schema = {
         },
         "isolation_level": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["determinism", "side_effects"],
+    "required": ["determinism", "side_effects", "rollback"],
     "additionalProperties": False,
 }
 
@@ -148,7 +148,14 @@ _CAPABILITY_SPEC_SCHEMA: Schema = {
             "additionalProperties": False,
         },
     },
-    "required": ["capability_id", "version", "inputs", "event_types", "safety_contract"],
+    "required": [
+        "capability_id",
+        "version",
+        "inputs",
+        "event_types",
+        "state_extractors",
+        "safety_contract",
+    ],
     "additionalProperties": False,
 }
 
@@ -336,12 +343,13 @@ _INTEGRATED_STATE_REPORT_SCHEMA: Schema = {
         "intent_id": {"type": "string"},
         "status": {"type": "string", "enum": ["satisfied", "violated", "unknown"]},
         "violated_rules": {"type": "array", "items": {"type": "string"}},
+        "state_snapshot": {"type": "object"},
         "evidence": {"type": "array", "items": {"type": "string"}},
         "blame": _BLAME_SCHEMA,
         "timestamp": _DATE_TIME_SCHEMA,
         "metadata": {"type": "object"},
     },
-    "required": ["report_id", "workflow_id", "status", "timestamp"],
+    "required": ["report_id", "workflow_id", "status", "timestamp", "state_snapshot"],
     "additionalProperties": False,
 }
 

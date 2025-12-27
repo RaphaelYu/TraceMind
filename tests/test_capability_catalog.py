@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from tm.artifacts import ArtifactValidationError
 from tm.caps import CapabilityAlreadyExists, CapabilityCatalog
 
 
@@ -55,4 +56,13 @@ def test_register_conflict_requires_overwrite(tmp_path: Path) -> None:
     spec = _sample_capability()
     catalog.register(spec)
     with pytest.raises(CapabilityAlreadyExists):
+        catalog.register(spec)
+
+
+def test_register_requires_side_effects(tmp_path: Path) -> None:
+    catalog_path = tmp_path / "caps.json"
+    catalog = CapabilityCatalog(path=catalog_path)
+    spec = _sample_capability()
+    spec["safety_contract"].pop("side_effects", None)
+    with pytest.raises(ArtifactValidationError):
         catalog.register(spec)

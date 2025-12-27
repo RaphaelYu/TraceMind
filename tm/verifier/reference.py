@@ -22,19 +22,21 @@ def verify_reference_trace(
     policy: Mapping[str, Any],
 ) -> Mapping[str, Any]:
     seen_validation = False
-    for ev in events:
+    events_list = list(events)
+    for idx, ev in enumerate(events_list):
         if ev == "validate.result.passed":
             seen_validation = True
         if ev == "external.write.done" and not seen_validation:
             context = _find_violation_context(policy)
-            report = _build_report(workflow, context, status="violated", evidence=[ev])
-            report["metadata"]["counterexample"] = list(events)
+            seen_events = events_list[: idx + 1]
+            report = _build_report(workflow, context, status="violated", events=seen_events, evidence=seen_events)
+            report["metadata"]["counterexample"] = list(events_list)
             report["metadata"]["patch_proposal"] = _build_patch_proposal(workflow, context)
             validate_integrated_state_report(report)
             return report
 
-    report = _build_report(workflow, None, status="satisfied", evidence=list(events))
-    report["metadata"]["counterexample"] = list(events)
+    report = _build_report(workflow, None, status="satisfied", events=events_list, evidence=events_list)
+    report["metadata"]["counterexample"] = list(events_list)
     validate_integrated_state_report(report)
     return report
 
@@ -52,6 +54,7 @@ def _build_report(
     context: ViolationContext | None,
     *,
     status: str,
+    events: Sequence[str],
     evidence: Sequence[str],
 ) -> Mapping[str, Any]:
     report_id = str(uuid.uuid4())
@@ -64,19 +67,26 @@ def _build_report(
         violated_rules = []
         blame = {}
 
+    snapshot = _derive_state(events)
+
     report = {
         "report_id": report_id,
         "workflow_id": workflow["workflow_id"],
         "intent_id": workflow["intent_id"],
         "status": status,
+        "state_snapshot": snapshot,
         "violated_rules": violated_rules,
         "evidence": list(evidence),
         "blame": blame,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "metadata": {
-            "events": list(evidence),
+            "events": list(events),
         },
     }
+
+    if context and "external.write.done" in events:
+        blame["guard"] = "approved"
+
     return report
 
 
@@ -107,6 +117,16 @@ def _build_patch_proposal(workflow: Mapping[str, Any], context: ViolationContext
     }
     validate_patch_proposal(proposal)
     return proposal
+
+
+def _derive_state(events: Sequence[str]) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {}
+    validated = any(ev.startswith("validate.result") for ev in events)
+    snapshot["result.validated"] = validated
+    snapshot["result.unvalidated"] = not validated
+    if any(ev.startswith("external.write") for ev in events):
+        snapshot["external.write.performed"] = True
+    return snapshot
 
 
 __all__ = ["verify_reference_trace", "ViolationContext"]

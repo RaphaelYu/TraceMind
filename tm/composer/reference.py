@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping, MutableMapping, Sequence
 
-from tm.artifacts import validate_workflow_policy
+from tm.artifacts import validate_capability_spec, validate_workflow_policy
 from tm.intent.validator import intent_precheck
 
 
@@ -24,6 +24,9 @@ def compose_reference_workflow(
     policy: Mapping[str, Any],
     capabilities: Sequence[Mapping[str, Any]],
 ) -> Mapping[str, Any]:
+    for spec in capabilities:
+        validate_capability_spec(spec)
+
     available = {str(spec["capability_id"]) for spec in capabilities}
     missing = [cap for _, cap in REFERENCE_STEPS if cap not in available]
     if missing:
