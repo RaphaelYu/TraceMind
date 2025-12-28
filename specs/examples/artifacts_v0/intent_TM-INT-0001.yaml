@@ -1,0 +1,35 @@
+envelope:
+  artifact_id: tm-intent-0001
+  status: candidate
+  artifact_type: intent
+  version: v0
+  created_by: trace-cli
+  created_at: "2024-01-01T00:00:00Z"
+  body_hash: ""
+  envelope_hash: ""
+  meta:
+    phase: example
+body:
+  intent_id: TM-INT-0001
+  title: "Notify on critical incidents"
+  context: "Critical incidents must reach the response channel immediately."
+  goal: "Emit a notification summary within 30 seconds of incident creation."
+  non_goals:
+    - "Remediate the incident automatically"
+  actors:
+    - "user"
+    - "system"
+  inputs:
+    - "incident.created"
+  outputs:
+    - "incident.notification"
+  constraints:
+    - "notifications must be idempotent"
+  success_metrics:
+    - "95% of notifications arrive within 30s"
+  risks:
+    - "alert storms when upstream thresholds spike"
+  assumptions:
+    - "incident metadata contains severity tags"
+  trace_links:
+    related_intents: []

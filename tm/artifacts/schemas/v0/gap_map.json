@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gap Map Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "gap_id": {"type": "string"},
+    "gap_description": {"type": "string"},
+    "impacted_intents": {"type": "array", "items": {"type": "string"}},
+    "mitigations": {"type": "array", "items": {"type": "string"}},
+    "severity": {"type": "string"}
+  },
+  "required": ["gap_id", "gap_description", "severity"],
+  "additionalProperties": false
+}

@@ -1,0 +1,20 @@
+envelope:
+  artifact_id: tm-gap-map-0001
+  status: candidate
+  artifact_type: gap_map
+  version: v0
+  created_by: trace-cli
+  created_at: "2024-01-01T03:00:00Z"
+  body_hash: ""
+  envelope_hash: ""
+  meta:
+    phase: example
+body:
+  gap_id: gap-notify-latency
+  gap_description: "Lines may be delayed when incident store is overloaded."
+  impacted_intents:
+    - "TM-INT-0001"
+  mitigations:
+    - "Add retry on fetch"
+    - "Throttle ingestion"
+  severity: high

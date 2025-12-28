@@ -1,0 +1,20 @@
+envelope:
+  artifact_id: tm-backlog-0001
+  status: candidate
+  artifact_type: backlog
+  version: v0
+  created_by: trace-cli
+  created_at: "2024-01-01T04:00:00Z"
+  body_hash: ""
+  envelope_hash: ""
+  meta:
+    phase: example
+body:
+  backlog_id: backlog-0001
+  items:
+    - intent_id: TM-INT-0002
+      priority: high
+      description: "Automate alert triage"
+    - intent_id: TM-INT-0003
+      priority: medium
+      description: "Improve incident reporting"

@@ -1,0 +1,17 @@
+intent_id: TM-INT-0001
+title: ""
+context: ""              # 背景与动机
+goal: ""                 # 可度量目标（至少1条）
+non_goals: []            # 明确不做什么
+actors: []               # user/system/external
+inputs: []               # 输入类型/来源
+outputs: []              # 输出类型/去向
+constraints:
+  invariants: []         # 永真：安全/一致性/审计
+  policies: []           # 需要插入的策略点
+success_metrics: []      # 3-5条，可验证
+risks: []                # 风险/失败模式
+assumptions: []          # 假设（后续会被挑战）
+trace_links:
+  parent_intent: null
+  related_intents: []

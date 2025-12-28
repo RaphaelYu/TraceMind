@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Capabilities Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "capability_id": {"type": "string"},
+    "description": {"type": "string"},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "outputs": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "execution_binding": {"type": "object"}
+  },
+  "required": ["capability_id", "description", "execution_binding"],
+  "additionalProperties": false
+}

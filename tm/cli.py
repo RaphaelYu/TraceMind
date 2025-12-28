@@ -54,6 +54,7 @@ from tm.monitoring.report import (
 
 __path__ = [str(Path(__file__).with_name("cli"))]
 from tm.cli.plugin_verify import run as plugin_verify_run
+from tm.cli.artifacts_cli import register_artifacts_commands, register_plan_commands
 from tm.cli.dsl import register_dsl_commands
 from tm.cli.flow import register_flow_commands
 from tm.cli.validate import register_validate_command
@@ -1492,6 +1493,8 @@ def _build_parser() -> argparse.ArgumentParser:
     register_simulate_command(sub)
     register_caps_commands(sub)
     register_intent_commands(sub)
+    register_artifacts_commands(sub)
+    register_plan_commands(sub)
 
     return parser
 

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Backlog Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "backlog_id": {"type": "string"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "intent_id": {"type": "string"},
+          "priority": {"type": "string"},
+          "description": {"type": "string"}
+        },
+        "required": ["intent_id", "priority", "description"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["backlog_id", "items"],
+  "additionalProperties": false
+}

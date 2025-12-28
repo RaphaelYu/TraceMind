@@ -1,3 +1,26 @@
+from .diff import DiffReport, diff_artifacts
+from .hash import body_hash
+from .models import (
+    Artifact,
+    ArtifactBody,
+    ArtifactEnvelope,
+    ArtifactStatus,
+    ArtifactType,
+    BacklogBody,
+    BacklogItem,
+    CapabilitiesBody,
+    GapMapBody,
+    IntentBody,
+    PlanBody,
+    PlanRule,
+    TraceLinks,
+    load_yaml_artifact,
+)
+from .normalize import normalize_body
+from .registry import ArtifactRegistry, RegistryEntry, default_registry
+from .report import ArtifactVerificationReport
+from .storage import RegistryStorage
+from .consistency import ConsistencyCode, ConsistencyIssue, ConsistencyReport, check_consistency
 from .validator import (
     ArtifactValidationError,
     validate_capability_spec,
@@ -8,8 +31,37 @@ from .validator import (
     validate_policy_spec,
     validate_workflow_policy,
 )
+from .verify import verify
 
 __all__ = [
+    "Artifact",
+    "ArtifactBody",
+    "ArtifactEnvelope",
+    "ArtifactStatus",
+    "ArtifactType",
+    "BacklogBody",
+    "BacklogItem",
+    "CapabilitiesBody",
+    "GapMapBody",
+    "IntentBody",
+    "PlanBody",
+    "PlanRule",
+    "TraceLinks",
+    "body_hash",
+    "load_yaml_artifact",
+    "normalize_body",
+    "DiffReport",
+    "diff_artifacts",
+    "ArtifactRegistry",
+    "RegistryEntry",
+    "RegistryStorage",
+    "default_registry",
+    "ConsistencyCode",
+    "ConsistencyIssue",
+    "ConsistencyReport",
+    "check_consistency",
+    "ArtifactVerificationReport",
+    "verify",
     "ArtifactValidationError",
     "validate_capability_spec",
     "validate_execution_trace",

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Intent Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "intent_id": {"type": "string"},
+    "title": {"type": "string"},
+    "context": {"type": "string"},
+    "goal": {"type": "string"},
+    "non_goals": {"type": "array", "items": {"type": "string"}},
+    "actors": {"type": "array", "items": {"type": "string"}},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "outputs": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "success_metrics": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "trace_links": {
+      "type": "object",
+      "properties": {
+        "parent_intent": {"type": ["string", "null"]},
+        "related_intents": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["related_intents"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["intent_id", "title", "context", "goal"],
+  "additionalProperties": false
+}

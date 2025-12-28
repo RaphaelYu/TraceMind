@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Artifact Envelope v0",
+  "type": "object",
+  "properties": {
+    "artifact_id": {"type": "string"},
+    "status": {"type": "string", "enum": ["candidate", "accepted"]},
+    "artifact_type": {"type": "string", "enum": ["intent", "capabilities", "plan", "gap_map", "backlog"]},
+    "version": {"type": "string"},
+    "created_by": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "body_hash": {"type": "string"},
+    "envelope_hash": {"type": "string"},
+    "meta": {"type": "object"},
+    "signature": {"type": ["string", "null"]}
+  },
+  "required": [
+    "artifact_id",
+    "status",
+    "artifact_type",
+    "version",
+    "created_by",
+    "created_at",
+    "body_hash",
+    "envelope_hash",
+    "meta"
+  ],
+  "additionalProperties": false
+}

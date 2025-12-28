@@ -1,0 +1,42 @@
+envelope:
+  artifact_id: tm-plan-0001
+  status: candidate
+  artifact_type: plan
+  version: v0
+  created_by: trace-cli
+  created_at: "2024-01-01T01:00:00Z"
+  body_hash: ""
+  envelope_hash: ""
+  meta:
+    phase: example
+body:
+  plan_id: plan-notify-0001
+  owner: incident.team
+  summary: "Notify teams of critical incidents"
+  steps:
+    - name: "read-incident"
+      reads:
+        - "incident.created"
+      writes:
+        - "incident.payload"
+      description: "Load incident payload"
+    - name: "format-notification"
+      reads:
+        - "incident.payload"
+      writes:
+        - "incident.message"
+      description: "Render notification template"
+    - name: "post-notification"
+      reads:
+        - "incident.message"
+      writes:
+        - "incident.notification"
+      description: "Dispatch the notification"
+  rules:
+    - name: "notify-on-critical"
+      triggers:
+        - "incident.created"
+      steps:
+        - "read-incident"
+        - "format-notification"
+        - "post-notification"

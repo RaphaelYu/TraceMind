@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Plan Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "plan_id": {"type": "string"},
+    "owner": {"type": "string"},
+    "summary": {"type": "string"},
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "reads": {"type": "array", "items": {"type": "string"}},
+          "writes": {"type": "array", "items": {"type": "string"}},
+          "description": {"type": "string"}
+        },
+        "required": ["name", "reads", "writes"],
+        "additionalProperties": false
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "triggers": {"type": "array", "items": {"type": "string"}},
+          "steps": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["name", "triggers", "steps"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["plan_id", "owner", "summary", "steps"],
+  "additionalProperties": false
+}
