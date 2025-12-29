@@ -6,10 +6,9 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:
-    yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 from tm.patch.store import PatchStore, PatchStoreError
 

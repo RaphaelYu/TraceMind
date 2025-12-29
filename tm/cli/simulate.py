@@ -5,10 +5,9 @@ import json
 from pathlib import Path
 from typing import Mapping
 
-try:  # pragma: no cover - optional dependency
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 from tm.validate.simulator import simulate
 

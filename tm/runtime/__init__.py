@@ -1,5 +1,6 @@
-from .task import TaskEnvelope
-from .idempotency import IdempotencyStore, IdempotencyResult
+from .context import ExecutionContext
+from .evidence import EvidenceRecorder, EvidenceRecord
+from .idempotency import ExecutionIdempotencyGuard, IdempotencyStore, IdempotencyResult
 from .queue import (
     WorkQueue,
     LeasedTask,
@@ -21,6 +22,10 @@ from .process_engine import (
 from .ir_runner import run_flow as run_ir_flow, RunResult, IrRunnerError
 
 __all__ = [
+    "ExecutionContext",
+    "EvidenceRecorder",
+    "EvidenceRecord",
+    "ExecutionIdempotencyGuard",
     "TaskEnvelope",
     "IdempotencyStore",
     "IdempotencyResult",

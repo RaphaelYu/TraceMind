@@ -7,10 +7,9 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:
-    yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 from tm.composer import ComposerError, WorkflowComposer, compose_reference_workflow
 from tm.verifier import verify_reference_trace

@@ -66,6 +66,7 @@ from tm.cli.compose import register_compose_commands
 from tm.cli.iterate import register_iterate_commands
 from tm.cli.patch import register_patch_commands
 from tm.cli.rerun import register_rerun_command
+from tm.cli.run_cli import register_run_commands
 from tm.verify import (
     Explorer,
     TraceMindAdapter,
@@ -1495,6 +1496,7 @@ def _build_parser() -> argparse.ArgumentParser:
     register_intent_commands(sub)
     register_artifacts_commands(sub)
     register_plan_commands(sub)
+    register_run_commands(sub)
 
     return parser
 

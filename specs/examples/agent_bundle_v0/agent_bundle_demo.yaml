@@ -1,0 +1,185 @@
+envelope:
+  artifact_id: tm-agent-bundle-demo
+  status: candidate
+  artifact_type: agent_bundle
+  version: v0
+  created_by: trace-cli
+  created_at: "2024-01-01T10:00:00Z"
+  body_hash: ""
+  envelope_hash: ""
+  meta:
+    phase: example
+body:
+  bundle_id: tm-bundle/demo
+  agents:
+    - agent_id: tm-agent/noop:0.1
+      name: noop
+      version: "0.1"
+      runtime:
+        kind: tm-noop
+        config: {}
+      contract:
+        inputs:
+          - ref: artifact:http_request
+            kind: artifact
+            schema:
+              type: object
+            required: true
+            mode: read
+        outputs:
+          - ref: state:noop.out
+            kind: resource
+            schema:
+              type: object
+            required: false
+            mode: write
+        effects:
+          - name: noop-effect
+            kind: resource
+            target: state:noop.out
+            idempotency:
+              type: keyed
+              key_fields:
+                - artifact_id
+            evidence:
+              type: status
+      config_schema:
+        type: object
+      evidence_outputs:
+        - name: noop
+          description: noop evidence
+      role: builtin
+    - agent_id: tm-agent/http-mock:0.1
+      name: http_mock
+      version: "0.1"
+      runtime:
+        kind: tm-http-mock
+        config:
+          responses:
+            "GET https://example.com/api/demo":
+              status: 200
+              headers:
+                x-demo: builtin
+              body: "ok"
+      contract:
+        inputs:
+          - ref: artifact:http_request
+            kind: artifact
+            schema:
+              type: object
+            required: true
+            mode: read
+        outputs:
+          - ref: artifact:http_response
+            kind: artifact
+            schema:
+              type: object
+            required: false
+            mode: write
+        effects:
+          - name: respond
+            kind: resource
+            target: artifact:http_response
+            idempotency:
+              type: keyed
+              key_fields:
+                - artifact_id
+            evidence:
+              type: status
+      config_schema:
+        type: object
+      evidence_outputs:
+        - name: http_mock
+          description: deterministically mocked http response
+      role: builtin
+    - agent_id: tm-agent/shell:0.1
+      name: shell
+      version: "0.1"
+      runtime:
+        kind: tm-shell
+        config:
+          command: "echo guard"
+      contract:
+        inputs: []
+        outputs:
+          - ref: state:shell.stdout
+            kind: resource
+            schema:
+              type: string
+            required: false
+            mode: write
+          - ref: state:shell.stderr
+            kind: resource
+            schema:
+              type: string
+            required: false
+            mode: write
+          - ref: state:shell.exit_code
+            kind: resource
+            schema:
+              type: integer
+            required: false
+            mode: write
+        effects:
+          - name: report-guard
+            kind: resource
+            target: state:shell.stdout
+            idempotency:
+              type: keyed
+              key_fields:
+                - command
+            evidence:
+              type: status
+          - name: report-guard-stderr
+            kind: resource
+            target: state:shell.stderr
+            idempotency:
+              type: keyed
+              key_fields:
+                - command
+            evidence:
+              type: status
+          - name: report-guard-code
+            kind: resource
+            target: state:shell.exit_code
+            idempotency:
+              type: keyed
+              key_fields:
+                - command
+            evidence:
+              type: status
+      config_schema:
+        type: object
+      evidence_outputs:
+        - name: shell
+          description: guard-denied shell attempt
+      role: builtin
+  plan:
+    - step: noop-step
+      agent_id: tm-agent/noop:0.1
+      phase: run
+      inputs:
+        - artifact:http_request
+      outputs:
+        - state:noop.out
+    - step: http-step
+      agent_id: tm-agent/http-mock:0.1
+      phase: run
+      inputs:
+        - artifact:http_request
+      outputs:
+        - artifact:http_response
+    - step: shell-step
+      agent_id: tm-agent/shell:0.1
+      phase: run
+      outputs:
+        - state:shell.stdout
+        - state:shell.stderr
+        - state:shell.exit_code
+  meta:
+    preconditions:
+      - artifact:http_request
+    policy:
+      allow:
+        - state:noop.out
+        - artifact:http_response

@@ -8,6 +8,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Sequence, cast
 
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
+
 from tm.artifacts import (
     ArtifactValidationError,
     validate_capability_spec,
@@ -27,12 +31,9 @@ def _load_structured(path: Path) -> Mapping[str, Any]:
     text = path.read_text(encoding="utf-8")
     suffix = path.suffix.lower()
     if suffix in {".yaml", ".yml"}:
-        try:
-            import yaml  # type: ignore[import-untyped]
-
-            payload = yaml.safe_load(text)
-        except ModuleNotFoundError as exc:
-            raise RuntimeError("PyYAML required to load YAML patches") from exc
+        if yaml is None:
+            raise RuntimeError("PyYAML required to load YAML patches")
+        payload = yaml.safe_load(text)
     else:
         payload = json.loads(text)
     if not isinstance(payload, Mapping):

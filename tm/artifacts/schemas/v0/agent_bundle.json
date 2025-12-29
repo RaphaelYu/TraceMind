@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Bundle Body v0",
+  "type": "object",
+  "properties": {
+    "bundle_id": {
+      "type": "string"
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/agent_entry"
+      }
+    },
+    "plan": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/plan_step"
+      }
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "bundle_id",
+    "agents",
+    "plan"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "io_ref": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "artifact",
+            "resource",
+            "service",
+            "environment"
+          ]
+        },
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            }
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "mutate"
+          ]
+        }
+      },
+      "required": [
+        "ref",
+        "kind",
+        "schema",
+        "required",
+        "mode"
+      ],
+      "additionalProperties": false
+    },
+    "idempotency": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "keyed",
+            "reentrant",
+            "non-idempotent"
+          ]
+        },
+        "key_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "hash",
+            "status",
+            "range"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "metric": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "const": "resource"
+        },
+        "target": {
+          "type": "string"
+        },
+        "idempotency": {
+          "$ref": "#/$defs/idempotency"
+        },
+        "rollback": {
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "target",
+        "idempotency",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "agent_runtime": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "config": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind",
+        "config"
+      ],
+      "additionalProperties": false
+    },
+    "agent_contract": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/io_ref"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/io_ref"
+          }
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        }
+      },
+      "required": [
+        "inputs",
+        "outputs",
+        "effects"
+      ],
+      "additionalProperties": false
+    },
+    "agent_evidence_output": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "agent_entry": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/agent_runtime"
+        },
+        "contract": {
+          "$ref": "#/$defs/agent_contract"
+        },
+        "config_schema": {
+          "type": "object"
+        },
+        "evidence_outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/agent_evidence_output"
+          }
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "agent_id",
+        "name",
+        "version",
+        "runtime",
+        "contract",
+        "config_schema",
+        "evidence_outputs"
+      ],
+      "additionalProperties": false
+    },
+    "plan_step": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "string"
+        },
+        "agent_id": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "init",
+            "run",
+            "emit",
+            "finalize"
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "agent_id"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -5,9 +5,9 @@ import os
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 try:
     import fcntl
@@ -179,4 +179,26 @@ class IdempotencyStore:
                 fcntl.flock(target.fileno(), fcntl.LOCK_UN)
 
 
-__all__ = ["IdempotencyStore", "IdempotencyResult"]
+@dataclass
+class ExecutionIdempotencyGuard:
+    ttl_seconds: float = 60.0
+    clock: Callable[[], float] = time.monotonic
+    _history: Dict[str, Tuple[Mapping[str, Any], float]] = field(default_factory=dict, init=False)
+
+    def lookup(self, key: str) -> Mapping[str, Any] | None:
+        now = self.clock()
+        entry = self._history.get(key)
+        if entry is None:
+            return None
+        result, expires_at = entry
+        if expires_at <= now:
+            self._history.pop(key, None)
+            return None
+        return dict(result)
+
+    def record(self, key: str, result: Mapping[str, Any]) -> None:
+        expires_at = self.clock() + self.ttl_seconds
+        self._history[key] = (dict(result), expires_at)
+
+
+__all__ = ["ExecutionIdempotencyGuard", "IdempotencyStore", "IdempotencyResult"]

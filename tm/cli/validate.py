@@ -16,7 +16,10 @@ from tm.artifacts import (
     validate_policy_spec,
     validate_workflow_policy,
 )
+from tm.utils.yaml import import_yaml
 from tm.validate import find_conflicts
+
+yaml = import_yaml()
 
 
 def _expand(patterns: Sequence[str]) -> Sequence[Path]:
@@ -39,10 +42,8 @@ def _expand(patterns: Sequence[str]) -> Sequence[Path]:
 
 
 def _load_yaml(path: Path) -> Mapping[str, object]:
-    try:
-        import yaml  # type: ignore[import-untyped]
-    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
-        raise SystemExit("PyYAML required; install with `pip install pyyaml`.") from exc
+    if yaml is None:
+        raise SystemExit("PyYAML required; install with `pip install pyyaml`.")
     with path.open("r", encoding="utf-8") as fh:
         data = yaml.safe_load(fh) or {}
         if not isinstance(data, Mapping):
@@ -54,10 +55,8 @@ def _load_structured(path: Path) -> Mapping[str, object]:
     text = path.read_text(encoding="utf-8")
     suffix = path.suffix.lower()
     if suffix in {".yaml", ".yml"}:
-        try:
-            import yaml
-        except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
-            raise ValueError("PyYAML required; install with `pip install pyyaml`.") from exc
+        if yaml is None:
+            raise ValueError("PyYAML required; install with `pip install pyyaml`.")
         data = yaml.safe_load(text) or {}
     else:
         try:

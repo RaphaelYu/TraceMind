@@ -5,6 +5,7 @@ from typing import Any, Mapping, Sequence, Tuple
 
 from .hash import body_hash
 from .models import (
+    AgentBundleBody,
     Artifact,
     ArtifactStatus,
     ArtifactType,
@@ -12,18 +13,19 @@ from .models import (
     PlanRule,
 )
 from .report import ArtifactVerificationReport
+from tm.lint.io_contract_lint import lint_agent_bundle_io_contract, lint_plan_io_contract
+from tm.lint.plan_lint import LintIssue
 
 _SUPPORTED_VERSION_PREFIX = "v0"
 _TRIGGER_PATTERN = re.compile(r"^[A-Za-z0-9_\.\[\]\*\$]+$")
+_BUNDLE_PHASES = {"init", "run", "emit", "finalize"}
 
 
 def _is_supported_version(version: str) -> bool:
     return version == _SUPPORTED_VERSION_PREFIX or version.startswith(f"{_SUPPORTED_VERSION_PREFIX}.")
 
 
-def _validate_plan_steps(
-    plan: PlanBody, raw_steps: Sequence[Any] | None, report: ArtifactVerificationReport
-) -> None:
+def _validate_plan_steps(plan: PlanBody, raw_steps: Sequence[Any] | None, report: ArtifactVerificationReport) -> None:
     if raw_steps is None:
         report.add_error("plan body missing 'steps' definition")
         return
@@ -83,6 +85,43 @@ def _validate_plan_body(body: PlanBody, raw_body: Mapping[str, Any], report: Art
     if raw_rules is not None and not isinstance(raw_rules, Sequence):
         report.add_error("plan.rules must be a sequence if provided")
     _validate_plan_rules(body, report)
+    lint_issues = lint_plan_io_contract(raw_body)
+    _report_lint_issues(report, lint_issues)
+
+
+def _report_lint_issues(report: ArtifactVerificationReport, issues: Sequence[LintIssue]) -> None:
+    for issue in issues:
+        suffix = f" (path: {issue.path})" if issue.path else ""
+        report.add_error(f"{issue.code}: {issue.message}{suffix}")
+
+
+def _validate_agent_bundle(
+    body: AgentBundleBody, raw_body: Mapping[str, Any], report: ArtifactVerificationReport
+) -> None:
+    if not body.agents:
+        report.add_error("agent bundle must declare at least one agent")
+    agent_ids = {agent.spec.agent_id for agent in body.agents}
+    raw_plan = raw_body.get("plan")
+    if raw_plan is None:
+        report.add_error("agent bundle missing 'plan'")
+        return
+    if not isinstance(raw_plan, Sequence) or isinstance(raw_plan, str):
+        report.add_error("agent bundle plan must be a sequence")
+        return
+    for idx, step in enumerate(body.plan):
+        path = f"plan[{idx}]"
+        if not step.step:
+            report.add_error(f"{path}.step must be a non-empty string")
+        if not step.agent_id:
+            report.add_error(f"{path}.agent_id must be a non-empty string")
+        elif step.agent_id not in agent_ids:
+            report.add_error(f"{path}.agent_id '{step.agent_id}' is not registered")
+        if step.phase and step.phase not in _BUNDLE_PHASES:
+            report.add_error(f"{path}.phase '{step.phase}' is not allowed")
+        if not isinstance(step.inputs, list):
+            report.add_error(f"{path}.inputs must be a list")
+        if not isinstance(step.outputs, list):
+            report.add_error(f"{path}.outputs must be a list")
 
 
 def _apply_success_metadata(artifact: Artifact, computed_hash: str) -> None:
@@ -105,6 +144,10 @@ def verify(candidate: Artifact) -> Tuple[Artifact | None, ArtifactVerificationRe
         report.add_error(f"unsupported artifact version '{candidate.envelope.version}'")
     if candidate.envelope.artifact_type == ArtifactType.PLAN and isinstance(candidate.body, PlanBody):
         _validate_plan_body(candidate.body, candidate.body_raw, report)
+    if candidate.envelope.artifact_type == ArtifactType.AGENT_BUNDLE and isinstance(candidate.body, AgentBundleBody):
+        _validate_agent_bundle(candidate.body, candidate.body_raw, report)
+        lint_issues = lint_agent_bundle_io_contract(candidate.body, candidate.body_raw)
+        _report_lint_issues(report, lint_issues)
     if report.errors:
         return None, report
     computed = body_hash(candidate.body_raw)

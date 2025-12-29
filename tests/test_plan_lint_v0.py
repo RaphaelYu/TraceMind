@@ -7,7 +7,7 @@ def test_step_missing_reads_writes():
             {"name": "step-missing-reads", "writes": ["out"]},
             {"name": "step-missing-writes", "reads": ["in"]},
         ],
-        "rules": []
+        "rules": [],
     }
     issues = lint_plan(plan)
     assert any(issue.code == "STEP_IO" and "reads" in issue.message for issue in issues)
@@ -16,12 +16,8 @@ def test_step_missing_reads_writes():
 
 def test_rule_references_unknown_step():
     plan = {
-        "steps": [
-            {"name": "step-one", "reads": ["in"], "writes": ["out"]}
-        ],
-        "rules": [
-            {"name": "rule-one", "triggers": ["in"], "steps": ["missing-step"]}
-        ],
+        "steps": [{"name": "step-one", "reads": ["in"], "writes": ["out"]}],
+        "rules": [{"name": "rule-one", "triggers": ["in"], "steps": ["missing-step"]}],
     }
     issues = lint_plan(plan)
     assert any(issue.code == "RULE_REF" for issue in issues)

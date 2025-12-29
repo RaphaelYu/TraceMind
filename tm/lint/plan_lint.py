@@ -41,7 +41,9 @@ def lint_plan(plan_body: Union[Mapping[str, Any], Any]) -> List[LintIssue]:
         path = f"steps[{idx}]"
         name = raw_step.get("name")
         if not isinstance(name, str) or not name.strip():
-            issues.append(LintIssue(code="STEP_NAME", message="step.name must be a non-empty string", severity="error", path=path))
+            issues.append(
+                LintIssue(code="STEP_NAME", message="step.name must be a non-empty string", severity="error", path=path)
+            )
         else:
             if name in seen_names:
                 issues.append(

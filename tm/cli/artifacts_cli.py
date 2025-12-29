@@ -18,11 +18,9 @@ from tm.artifacts import (
 )
 from tm.artifacts.registry import RegistryStorage
 from tm.lint.plan_lint import LintIssue, lint_plan
+from tm.utils.yaml import import_yaml
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    yaml = None
+yaml = import_yaml()
 
 
 def _load_plan(path: Path) -> Mapping[str, Any]:

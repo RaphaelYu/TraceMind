@@ -4,15 +4,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence, TYPE_CHECKING
+from typing import Any, Iterable, Mapping, Sequence
 
-if TYPE_CHECKING:
-    import yaml  # type: ignore[import-untyped]
-else:
-    try:
-        import yaml
-    except ModuleNotFoundError:
-        yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 from tm.cli.intent import evaluate_intent_status
 from tm.composer import WorkflowComposer

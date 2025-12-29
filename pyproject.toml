@@ -30,7 +30,7 @@ dependencies = [
 tm = "tm.cli:main"
 
 [project.optional-dependencies]
-yaml = ["PyYAML>=6.0"]
+yaml = ["PyYAML>=6.0", "types-PyYAML>=6.0.0"]
 prom = ["prometheus-client>=0.16"]
 mcp = ["httpx>=0.25"]
 retrospect = ["marimo>=0.7"]

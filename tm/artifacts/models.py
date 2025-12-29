@@ -5,6 +5,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Mapping, Sequence, Type, Union
 
+from tm.agents.models import AgentSpec
+
 
 class ArtifactStatus(str, Enum):
     CANDIDATE = "candidate"
@@ -17,6 +19,7 @@ class ArtifactType(str, Enum):
     PLAN = "plan"
     GAP_MAP = "gap_map"
     BACKLOG = "backlog"
+    AGENT_BUNDLE = "agent_bundle"
 
 
 def _require_field(data: Mapping[str, Any], key: str) -> Any:
@@ -85,6 +88,12 @@ def _force_list(value: Any, name: str) -> List[str]:
     if not isinstance(value, Sequence) or isinstance(value, str):
         raise TypeError(f"{name} must be a list of strings")
     return [str(item) for item in value]
+
+
+def _ensure_sequence(value: Any, name: str) -> Sequence[Any]:
+    if not isinstance(value, Sequence) or isinstance(value, str):
+        raise TypeError(f"{name} must be a sequence")
+    return value
 
 
 @dataclass
@@ -174,7 +183,9 @@ class PlanStep:
             name=_ensure_str(_require_field(data, "name"), "name"),
             reads=_force_list(data.get("reads"), "reads"),
             writes=_force_list(data.get("writes"), "writes"),
-            description=_ensure_str(data.get("description"), "description") if data.get("description") is not None else None,
+            description=(
+                _ensure_str(data.get("description"), "description") if data.get("description") is not None else None
+            ),
         )
 
 
@@ -220,6 +231,71 @@ class PlanBody:
             summary=_ensure_str(_require_field(data, "summary"), "summary"),
             steps=steps,
             rules=rules,
+        )
+
+
+@dataclass
+class AgentBundlePlanStep:
+    step: str
+    agent_id: str
+    phase: str | None
+    inputs: List[str]
+    outputs: List[str]
+    description: str | None
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> "AgentBundlePlanStep":
+        raw = _ensure_dict(data, "agent bundle plan step")
+        inputs = _force_list(raw.get("inputs"), "plan.inputs")
+        outputs = _force_list(raw.get("outputs"), "plan.outputs")
+        return cls(
+            step=_ensure_str(_require_field(raw, "step"), "plan.step"),
+            agent_id=_ensure_str(_require_field(raw, "agent_id"), "plan.agent_id"),
+            phase=_ensure_str(raw.get("phase"), "plan.phase") if raw.get("phase") is not None else None,
+            inputs=inputs,
+            outputs=outputs,
+            description=(
+                _ensure_str(raw.get("description"), "plan.description") if raw.get("description") is not None else None
+            ),
+        )
+
+
+@dataclass
+class AgentBundleAgent:
+    spec: AgentSpec
+    role: str | None
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> "AgentBundleAgent":
+        raw = _ensure_dict(data, "agent bundle agent")
+        role_value = raw.get("role")
+        spec_data = dict(raw)
+        spec_data.pop("role", None)
+        spec = AgentSpec.from_mapping(spec_data)
+        return cls(
+            spec=spec,
+            role=_ensure_str(role_value, "agent.role") if role_value is not None else None,
+        )
+
+
+@dataclass
+class AgentBundleBody:
+    artifact_type: ClassVar[ArtifactType] = ArtifactType.AGENT_BUNDLE
+    bundle_id: str
+    agents: List[AgentBundleAgent]
+    plan: List[AgentBundlePlanStep]
+    meta: Dict[str, Any]
+
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> "AgentBundleBody":
+        agents_raw = _ensure_sequence(_require_field(data, "agents"), "agents")
+        plan_raw = _ensure_sequence(_require_field(data, "plan"), "plan")
+        meta_raw = data.get("meta") or {}
+        return cls(
+            bundle_id=_ensure_str(_require_field(data, "bundle_id"), "bundle_id"),
+            agents=[AgentBundleAgent.from_mapping(_ensure_dict(agent, "agent")) for agent in agents_raw],
+            plan=[AgentBundlePlanStep.from_mapping(_ensure_dict(step, "plan step")) for step in plan_raw],
+            meta=_ensure_dict(meta_raw, "meta"),
         )
 
 
@@ -276,7 +352,7 @@ class BacklogBody:
         )
 
 
-ArtifactBody = Union[IntentBody, CapabilitiesBody, PlanBody, GapMapBody, BacklogBody]
+ArtifactBody = Union[IntentBody, CapabilitiesBody, PlanBody, GapMapBody, BacklogBody, AgentBundleBody]
 
 
 @dataclass
@@ -296,6 +372,7 @@ _BODY_FACTORY: Dict[ArtifactType, Type[ArtifactBody]] = {
     ArtifactType.PLAN: PlanBody,
     ArtifactType.GAP_MAP: GapMapBody,
     ArtifactType.BACKLOG: BacklogBody,
+    ArtifactType.AGENT_BUNDLE: AgentBundleBody,
 }
 
 
@@ -329,5 +406,9 @@ __all__ = [
     "PlanBody",
     "PlanRule",
     "TraceLinks",
+    "AgentBundleAgent",
+    "AgentBundleBody",
+    "AgentBundlePlanStep",
+    "AgentSpec",
     "load_yaml_artifact",
 ]

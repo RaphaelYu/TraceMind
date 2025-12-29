@@ -7,10 +7,9 @@ from argparse import _SubParsersAction
 from pathlib import Path
 from typing import Any, Mapping
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:
-    yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 from tm.artifacts import ArtifactValidationError, validate_capability_spec
 from tm.caps import CapabilityAlreadyExists, CapabilityCatalog, CapabilityNotFound

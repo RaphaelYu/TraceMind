@@ -32,8 +32,99 @@
         "required": ["name", "triggers", "steps"],
         "additionalProperties": false
       }
+    },
+    "io_contract": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/io_ref"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/io_ref"
+          }
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/effect"
+          }
+        }
+      },
+      "required": ["inputs", "outputs", "effects"],
+      "additionalProperties": false
     }
   },
   "required": ["plan_id", "owner", "summary", "steps"],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "io_ref": {
+      "type": "object",
+      "properties": {
+        "ref": {"type": "string"},
+        "kind": {
+          "type": "string",
+          "enum": ["artifact", "resource", "service", "environment"]
+        },
+        "schema": {
+          "anyOf": [
+            {"type": "string"},
+            {"type": "object"}
+          ]
+        },
+        "required": {"type": "boolean"},
+        "mode": {
+          "type": "string",
+          "enum": ["read", "write", "mutate"]
+        }
+      },
+      "required": ["ref", "kind", "schema", "required", "mode"],
+      "additionalProperties": false
+    },
+    "idempotency": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["keyed", "reentrant", "non-idempotent"]
+        },
+        "key_fields": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["hash", "status", "range"]
+        },
+        "path": {"type": "string"},
+        "metric": {"type": "string"}
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "kind": {"type": "string", "const": "resource"},
+        "target": {"type": "string"},
+        "idempotency": {"$ref": "#/$defs/idempotency"},
+        "rollback": {"type": "string"},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": ["name", "kind", "target", "idempotency", "evidence"],
+      "additionalProperties": false
+    }
+  }
 }

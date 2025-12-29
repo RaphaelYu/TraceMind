@@ -5,15 +5,11 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Mapping, TYPE_CHECKING
+from typing import Any, Mapping
 
-if TYPE_CHECKING:
-    import yaml  # type: ignore[import-untyped]
-else:
-    try:
-        import yaml
-    except ModuleNotFoundError:
-        yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 from tm.composer import ComposerError, compose_reference_workflow
 from tm.iteration.loop import run_iteration

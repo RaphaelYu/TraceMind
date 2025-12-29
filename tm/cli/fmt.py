@@ -7,10 +7,9 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    yaml = None
+from tm.utils.yaml import import_yaml
+
+yaml = import_yaml()
 
 
 def _expand(patterns: Iterable[str]) -> tuple[Path, ...]:

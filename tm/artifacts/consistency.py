@@ -57,9 +57,7 @@ def _load_previous_artifact(entry: RegistryEntry) -> Artifact | None:
         return None
 
 
-def _calc_intent_entries(
-    artifact: Artifact, registry: ArtifactRegistry
-) -> Sequence[RegistryEntry]:
+def _calc_intent_entries(artifact: Artifact, registry: ArtifactRegistry) -> Sequence[RegistryEntry]:
     intent_id = getattr(artifact.body, "intent_id", None)
     if not intent_id:
         return []
@@ -75,9 +73,7 @@ def _check_C1(artifact: Artifact, registry: ArtifactRegistry) -> List[Consistenc
         if previous is None:
             continue
         diff = diff_artifacts(artifact, previous)
-        message = (
-            f"C1: intent {entry.intent_id or entry.artifact_id} body changed in canonical representation"
-        )
+        message = f"C1: intent {entry.intent_id or entry.artifact_id} body changed in canonical representation"
         issues.append(
             ConsistencyIssue(
                 code=ConsistencyCode.C1,
@@ -134,16 +130,10 @@ def _check_C3(artifact: Artifact, registry: ArtifactRegistry) -> List[Consistenc
         previous_inv = entry.meta.get("invariant_status", {})
         if not isinstance(previous_inv, Mapping):
             continue
-        regressions = [
-            name
-            for name, passed in previous_inv.items()
-            if passed and not current_inv.get(name, False)
-        ]
+        regressions = [name for name, passed in previous_inv.items() if passed and not current_inv.get(name, False)]
         if not regressions:
             continue
-        summary = (
-            f"C3: artifact {artifact.envelope.artifact_id} regresses invariants: {', '.join(regressions)}"
-        )
+        summary = f"C3: artifact {artifact.envelope.artifact_id} regresses invariants: {', '.join(regressions)}"
         issues.append(
             ConsistencyIssue(
                 code=ConsistencyCode.C3,

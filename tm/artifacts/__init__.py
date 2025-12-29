@@ -14,6 +14,10 @@ from .models import (
     PlanBody,
     PlanRule,
     TraceLinks,
+    AgentBundleAgent,
+    AgentBundleBody,
+    AgentBundlePlanStep,
+    AgentSpec,
     load_yaml_artifact,
 )
 from .normalize import normalize_body
@@ -47,6 +51,10 @@ __all__ = [
     "PlanBody",
     "PlanRule",
     "TraceLinks",
+    "AgentBundleAgent",
+    "AgentBundleBody",
+    "AgentBundlePlanStep",
+    "AgentSpec",
     "body_hash",
     "load_yaml_artifact",
     "normalize_body",

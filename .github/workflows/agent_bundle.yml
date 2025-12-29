@@ -1,0 +1,64 @@
+name: Agent Bundle Smoke
+
+on:
+  push:
+    paths:
+      - 'specs/examples/agent_bundle_v0/**'
+      - 'tests/test_golden_agent_bundle_v0.py'
+      - 'tests/test_builtin_agents_v0.py'
+      - 'tm/**'
+  pull_request:
+    paths:
+      - 'specs/examples/agent_bundle_v0/**'
+      - 'tests/test_golden_agent_bundle_v0.py'
+      - 'tests/test_builtin_agents_v0.py'
+      - 'tm/**'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,yaml]
+
+      - name: Run bundle-specific tests
+        run: python -m pytest tests/test_builtin_agents_v0.py tests/test_golden_agent_bundle_v0.py
+
+      - name: Verify golden artifact
+        run: tm artifacts verify specs/examples/agent_bundle_v0/agent_bundle_demo.yaml
+
+      - name: Accept golden artifact
+        run: |
+          mkdir -p tmp/artifacts tmp/run
+          tm artifacts accept specs/examples/agent_bundle_v0/agent_bundle_demo.yaml --out tmp/artifacts
+
+      - name: Run golden bundle with guard denial
+        run: |
+          set -o pipefail
+          tm run bundle tmp/artifacts/tm-agent-bundle-demo.yaml \
+            --inputs artifact:http_request='{"method":"GET","url":"https://example.com/api/demo"}' \
+            --report tmp/run/report.json --json || true
+
+      - name: Validate run report
+        run: |
+          python - <<'PY'
+import json
+from pathlib import Path
+
+report = json.loads(Path("tmp/run/report.json").read_text(encoding="utf-8"))
+assert report["error"] is not None
+assert report["success"] is False
+assert report["policy_decisions"]
+assert any(not decision.get("allowed", True) for decision in report["policy_decisions"])
+PY
