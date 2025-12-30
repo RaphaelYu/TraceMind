@@ -8,13 +8,12 @@ from typing import Any, Mapping, Sequence
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
 from tm.artifacts import ArtifactValidationError, validate_policy_spec
 from tm.caps.catalog import DEFAULT_CATALOG_PATH
 from tm.caps import CapabilityCatalog
 from tm.intent import intent_precheck, validate_intent
 
+yaml = import_yaml()
 ILLEGAL_INTENT_KEYS = {
     "steps",
     "rules",

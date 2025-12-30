@@ -7,10 +7,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from tm.utils.yaml import import_yaml
+from tm.patch.store import PatchStore, PatchStoreError
 
 yaml = import_yaml()
-
-from tm.patch.store import PatchStore, PatchStoreError
 
 
 def _load_structured(path: Path) -> Mapping[str, Any]:

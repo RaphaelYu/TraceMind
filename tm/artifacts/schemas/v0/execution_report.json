@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExecutionReport Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "report_id": {"type": "string"},
+    "artifact_refs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "string",
+      "enum": ["succeeded", "partial", "failed"]
+    },
+    "policy_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "effect_ref": {"type": "string"},
+          "allowed": {"type": "boolean"},
+          "reason": {"type": "string"}
+        },
+        "required": ["effect_ref", "allowed", "reason"],
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "execution_hash": {"type": "string"}
+  },
+  "required": [
+    "report_id",
+    "artifact_refs",
+    "status",
+    "policy_decisions",
+    "artifacts",
+    "execution_hash"
+  ],
+  "additionalProperties": false
+}

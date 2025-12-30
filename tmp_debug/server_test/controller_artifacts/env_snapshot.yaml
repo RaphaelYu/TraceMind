@@ -1,0 +1,28 @@
+body:
+  constraints:
+  - description: Mock observation constraints
+    rule: mock-observe
+    type: guard
+  data_hash: 470c1573330392561196d22aa236d29e7c041a93e5cd50de2bb879d2e527d59c
+  environment:
+    state:
+      phase: mock
+  snapshot_id: env-mock
+  timestamp: '2025-01-01T00:00:00Z'
+envelope:
+  artifact_id: tm-controller/env_snapshot-bundle
+  artifact_type: environment_snapshot
+  body_hash: 5921474e45ff8a4b2ab0c6a3cbffe0af689e6f6a18c6cb486a9c73053210ac8a
+  created_at: '2025-12-30T02:02:50.577305+00:00'
+  created_by: controller.cycle
+  envelope_hash: ''
+  meta:
+    bundle: tmp_debug/server_test/bundle.yaml
+    determinism: true
+    hashes:
+      body_hash: 5921474e45ff8a4b2ab0c6a3cbffe0af689e6f6a18c6cb486a9c73053210ac8a
+    mode: live
+    phase: controller-cycle
+    produced_by: tracemind.verifier.v0
+  status: accepted
+  version: v0

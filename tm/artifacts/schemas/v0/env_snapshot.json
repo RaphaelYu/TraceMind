@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EnvSnapshot Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "snapshot_id": {"type": "string"},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "environment": {"type": "object"},
+    "constraints": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "data_hash": {"type": "string"}
+  },
+  "required": ["snapshot_id", "timestamp", "environment", "data_hash"],
+  "additionalProperties": false
+}

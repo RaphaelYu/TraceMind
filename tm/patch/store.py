@@ -10,8 +10,6 @@ from typing import Any, Mapping, MutableMapping, Sequence, cast
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
 from tm.artifacts import (
     ArtifactValidationError,
     validate_capability_spec,
@@ -19,6 +17,8 @@ from tm.artifacts import (
     validate_policy_spec,
     validate_workflow_policy,
 )
+
+yaml = import_yaml()
 
 JSONPointer = str
 

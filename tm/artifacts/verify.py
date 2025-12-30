@@ -9,8 +9,11 @@ from .models import (
     Artifact,
     ArtifactStatus,
     ArtifactType,
+    EnvSnapshotBody,
+    ExecutionReportBody,
     PlanBody,
     PlanRule,
+    ProposedChangePlanBody,
 )
 from .report import ArtifactVerificationReport
 from tm.lint.io_contract_lint import lint_agent_bundle_io_contract, lint_plan_io_contract
@@ -124,6 +127,59 @@ def _validate_agent_bundle(
             report.add_error(f"{path}.outputs must be a list")
 
 
+def _validate_env_snapshot(
+    body: EnvSnapshotBody, raw_body: Mapping[str, Any], report: ArtifactVerificationReport
+) -> None:
+    if not body.snapshot_id:
+        report.add_error("env snapshot must declare 'snapshot_id'")
+    if not body.timestamp:
+        report.add_error("env snapshot must declare 'timestamp'")
+    if not body.environment:
+        report.add_error("env snapshot 'environment' must not be empty")
+    if not body.data_hash:
+        report.add_error("env snapshot must declare 'data_hash'")
+    constraints_raw = raw_body.get("constraints")
+    if constraints_raw is not None and not isinstance(constraints_raw, Sequence):
+        report.add_error("env snapshot 'constraints' must be a sequence if provided")
+
+
+def _validate_proposed_change_plan(
+    body: ProposedChangePlanBody, raw_body: Mapping[str, Any], report: ArtifactVerificationReport
+) -> None:
+    if not body.plan_id:
+        report.add_error("proposed plan must declare 'plan_id'")
+    if not body.intent_id:
+        report.add_error("proposed plan must declare 'intent_id'")
+    if not body.decisions:
+        report.add_error("proposed plan must include at least one decision")
+    for idx, decision in enumerate(body.decisions):
+        if not decision.effect_ref:
+            report.add_error(f"decisions[{idx}].effect_ref must be non-empty")
+        if not decision.idempotency_key:
+            report.add_error(f"decisions[{idx}].idempotency_key must be non-empty")
+        if not decision.target_state:
+            report.add_error(f"decisions[{idx}].target_state must be provided")
+    if not body.summary:
+        report.add_error("proposed plan must include a 'summary'")
+    policy_raw = raw_body.get("policy_requirements")
+    if policy_raw is not None and not isinstance(policy_raw, Sequence):
+        report.add_error("policy_requirements must be a sequence")
+
+
+def _validate_execution_report(
+    body: ExecutionReportBody, raw_body: Mapping[str, Any], report: ArtifactVerificationReport
+) -> None:
+    if not body.report_id:
+        report.add_error("execution report must declare 'report_id'")
+    if not body.execution_hash:
+        report.add_error("execution report must declare 'execution_hash'")
+    if not body.policy_decisions:
+        report.add_error("execution report must include policy decisions")
+    policy_raw = raw_body.get("policy_decisions")
+    if policy_raw is not None and not isinstance(policy_raw, Sequence):
+        report.add_error("execution report 'policy_decisions' must be a sequence")
+
+
 def _apply_success_metadata(artifact: Artifact, computed_hash: str) -> None:
     artifact.envelope.body_hash = computed_hash
     hashes = artifact.envelope.meta.get("hashes")
@@ -148,6 +204,18 @@ def verify(candidate: Artifact) -> Tuple[Artifact | None, ArtifactVerificationRe
         _validate_agent_bundle(candidate.body, candidate.body_raw, report)
         lint_issues = lint_agent_bundle_io_contract(candidate.body, candidate.body_raw)
         _report_lint_issues(report, lint_issues)
+    if candidate.envelope.artifact_type == ArtifactType.ENVIRONMENT_SNAPSHOT and isinstance(
+        candidate.body, EnvSnapshotBody
+    ):
+        _validate_env_snapshot(candidate.body, candidate.body_raw, report)
+    if candidate.envelope.artifact_type == ArtifactType.PROPOSED_CHANGE_PLAN and isinstance(
+        candidate.body, ProposedChangePlanBody
+    ):
+        _validate_proposed_change_plan(candidate.body, candidate.body_raw, report)
+    if candidate.envelope.artifact_type == ArtifactType.EXECUTION_REPORT and isinstance(
+        candidate.body, ExecutionReportBody
+    ):
+        _validate_execution_report(candidate.body, candidate.body_raw, report)
     if report.errors:
         return None, report
     computed = body_hash(candidate.body_raw)

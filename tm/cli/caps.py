@@ -9,10 +9,10 @@ from typing import Any, Mapping
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
 from tm.artifacts import ArtifactValidationError, validate_capability_spec
 from tm.caps import CapabilityAlreadyExists, CapabilityCatalog, CapabilityNotFound
+
+yaml = import_yaml()
 
 
 def register_caps_commands(subparsers: _SubParsersAction) -> None:

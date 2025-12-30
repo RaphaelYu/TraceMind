@@ -6,20 +6,13 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Mapping, Sequence, Type, Union
 
 from tm.agents.models import AgentSpec
+from tm.artifacts.types import ArtifactType
+from tm.controllers.models import EnvSnapshotBody, ExecutionReportBody, ProposedChangePlanBody
 
 
 class ArtifactStatus(str, Enum):
     CANDIDATE = "candidate"
     ACCEPTED = "accepted"
-
-
-class ArtifactType(str, Enum):
-    INTENT = "intent"
-    CAPABILITIES = "capabilities"
-    PLAN = "plan"
-    GAP_MAP = "gap_map"
-    BACKLOG = "backlog"
-    AGENT_BUNDLE = "agent_bundle"
 
 
 def _require_field(data: Mapping[str, Any], key: str) -> Any:
@@ -352,7 +345,17 @@ class BacklogBody:
         )
 
 
-ArtifactBody = Union[IntentBody, CapabilitiesBody, PlanBody, GapMapBody, BacklogBody, AgentBundleBody]
+ArtifactBody = Union[
+    IntentBody,
+    CapabilitiesBody,
+    PlanBody,
+    GapMapBody,
+    BacklogBody,
+    AgentBundleBody,
+    EnvSnapshotBody,
+    ProposedChangePlanBody,
+    ExecutionReportBody,
+]
 
 
 @dataclass
@@ -373,6 +376,9 @@ _BODY_FACTORY: Dict[ArtifactType, Type[ArtifactBody]] = {
     ArtifactType.GAP_MAP: GapMapBody,
     ArtifactType.BACKLOG: BacklogBody,
     ArtifactType.AGENT_BUNDLE: AgentBundleBody,
+    ArtifactType.ENVIRONMENT_SNAPSHOT: EnvSnapshotBody,
+    ArtifactType.PROPOSED_CHANGE_PLAN: ProposedChangePlanBody,
+    ArtifactType.EXECUTION_REPORT: ExecutionReportBody,
 }
 
 
@@ -405,6 +411,9 @@ __all__ = [
     "IntentBody",
     "PlanBody",
     "PlanRule",
+    "ProposedChangePlanBody",
+    "EnvSnapshotBody",
+    "ExecutionReportBody",
     "TraceLinks",
     "AgentBundleAgent",
     "AgentBundleBody",

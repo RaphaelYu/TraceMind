@@ -92,9 +92,7 @@ class AgentBundleExecutor:
     def _load_preconditions(self, bundle: AgentBundleBody, context: ExecutionContext) -> None:
         meta = bundle.meta if isinstance(bundle.meta, Mapping) else {}
         raw_preconditions = meta.get("preconditions", [])
-        if isinstance(raw_preconditions, Sequence) and not isinstance(
-            raw_preconditions, (str, bytes, bytearray)
-        ):
+        if isinstance(raw_preconditions, Sequence) and not isinstance(raw_preconditions, (str, bytes, bytearray)):
             preconditions = [str(item) for item in raw_preconditions]
         else:
             preconditions = []

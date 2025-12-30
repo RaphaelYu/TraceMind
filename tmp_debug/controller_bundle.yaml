@@ -1,0 +1,169 @@
+body:
+  agents:
+  - agent_id: tm-agent/controller-observe:0.1
+    config_schema:
+      type: object
+    contract:
+      effects:
+      - evidence:
+          path: state:env.snapshot
+          type: hash
+        idempotency:
+          key_fields:
+          - snapshot_id
+          type: keyed
+        kind: resource
+        name: capture_snapshot
+        target: state:env.snapshot
+      inputs: []
+      outputs:
+      - kind: resource
+        mode: write
+        ref: state:env.snapshot
+        required: true
+        schema:
+          type: object
+    evidence_outputs:
+    - description: env snapshot evidence
+      name: snapshot
+    name: controller-observe-mock
+    role: observe
+    runtime:
+      config: {}
+      kind: python
+    version: '0.1'
+  - agent_id: tm-agent/controller-decide:0.1
+    config_schema:
+      type: object
+    contract:
+      effects:
+      - evidence:
+          path: artifact:proposed.plan
+          type: hash
+        idempotency:
+          key_fields:
+          - plan_id
+          type: keyed
+        kind: resource
+        name: plan_decision
+        target: artifact:proposed.plan
+      inputs:
+      - kind: resource
+        mode: read
+        ref: state:env.snapshot
+        required: true
+        schema:
+          type: object
+      outputs:
+      - kind: artifact
+        mode: write
+        ref: artifact:proposed.plan
+        required: true
+        schema:
+          type: object
+    evidence_outputs:
+    - description: decision plan evidence
+      name: plan
+    name: controller-decide-mock
+    role: decide
+    runtime:
+      config: {}
+      kind: python
+    version: '0.1'
+  - agent_id: tm-agent/controller-act:0.1
+    config_schema:
+      type: object
+    contract:
+      effects:
+      - evidence:
+          path: resource:inventory:update
+          type: hash
+        idempotency:
+          key_fields:
+          - idempotency_key
+          type: keyed
+        kind: resource
+        name: apply_inventory
+        target: resource:inventory:update
+      inputs:
+      - kind: resource
+        mode: read
+        ref: state:env.snapshot
+        required: true
+        schema:
+          type: object
+      - kind: artifact
+        mode: read
+        ref: artifact:proposed.plan
+        required: true
+        schema:
+          type: object
+      outputs:
+      - kind: artifact
+        mode: write
+        ref: artifact:execution.report
+        required: true
+        schema:
+          type: object
+      - kind: resource
+        mode: write
+        ref: state:act.result
+        required: true
+        schema:
+          type: object
+    evidence_outputs:
+    - description: execution evidence
+      name: act_report
+    name: controller-act-mock
+    role: act
+    runtime:
+      config: {}
+      kind: python
+    version: '0.1'
+  bundle_id: tm-controller/demo
+  meta:
+    phase: controller-demo
+    policy:
+      allow:
+      - state:env.snapshot
+      - artifact:proposed.plan
+      - resource:inventory:update
+  plan:
+  - agent_id: tm-agent/controller-observe:0.1
+    inputs: []
+    outputs:
+    - state:env.snapshot
+    phase: run
+    step: observe
+  - agent_id: tm-agent/controller-decide:0.1
+    inputs:
+    - state:env.snapshot
+    outputs:
+    - artifact:proposed.plan
+    phase: run
+    step: decide
+  - agent_id: tm-agent/controller-act:0.1
+    inputs:
+    - state:env.snapshot
+    - artifact:proposed.plan
+    outputs:
+    - artifact:execution.report
+    - state:act.result
+    phase: run
+    step: act
+envelope:
+  artifact_id: tm-controller/demo/bundle
+  artifact_type: agent_bundle
+  body_hash: bundle-body-hash
+  created_at: '2025-01-01T00:00:00Z'
+  created_by: tests
+  envelope_hash: bundle-envelope-hash
+  meta:
+    phase: controller-demo
+    policy:
+      allow:
+      - state:env.snapshot
+      - artifact:proposed.plan
+      - resource:inventory:update
+  status: accepted
+  version: v0

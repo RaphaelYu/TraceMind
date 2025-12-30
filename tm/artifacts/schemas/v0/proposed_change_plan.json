@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProposedChangePlan Artifact Body v0",
+  "type": "object",
+  "properties": {
+    "plan_id": {"type": "string"},
+    "intent_id": {"type": "string"},
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "effect_ref": {"type": "string"},
+          "target_state": {"type": "object"},
+          "idempotency_key": {"type": "string"},
+          "reasoning_trace": {"type": "string"}
+        },
+        "required": ["effect_ref", "target_state", "idempotency_key"],
+        "additionalProperties": false
+      }
+    },
+    "llm_metadata": {
+      "type": "object",
+      "properties": {
+        "model": {"type": "string"},
+        "prompt_hash": {"type": "string"},
+        "determinism_hint": {
+          "type": "string",
+          "enum": ["deterministic", "replayable", "heuristic"]
+        },
+        "model_id": {"type": "string"},
+        "model_version": {"type": "string"},
+        "prompt_template_version": {"type": "string"},
+        "inputs_hash": {"type": "string"}
+      },
+      "required": ["model", "prompt_hash", "determinism_hint"],
+      "additionalProperties": false
+    },
+    "summary": {"type": "string"},
+    "policy_requirements": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "required": ["plan_id", "intent_id", "decisions", "llm_metadata", "summary"],
+  "additionalProperties": false
+}

@@ -8,12 +8,12 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
-from tm.cli.intent import evaluate_intent_status
+from .intent import evaluate_intent_status
 from tm.composer import WorkflowComposer
 from tm.runtime.workflow_executor import execute_workflow
 from tm.verifier import WorkflowVerifier
+
+yaml = import_yaml()
 
 
 def _load_structured(path: Path) -> Mapping[str, Any]:

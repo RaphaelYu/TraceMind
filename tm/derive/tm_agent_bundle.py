@@ -7,14 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-try:
-    import yaml  # type: ignore[import-untyped]
-except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    yaml = None
-
 from tm.artifacts import Artifact, load_yaml_artifact, verify
-from tm.artifacts.models import ArtifactType, IntentBody
+from tm.artifacts.models import IntentBody
 from tm.artifacts.report import ArtifactVerificationReport
+from tm.artifacts.types import ArtifactType
+from tm.utils.yaml import import_yaml
+
+# PyYAML is optional; import_yaml already handles detection and wrapping
+yaml = import_yaml()
 
 VerifyFn = Callable[[Artifact], tuple[Artifact | None, ArtifactVerificationReport]]
 

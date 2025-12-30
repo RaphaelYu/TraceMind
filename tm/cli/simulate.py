@@ -7,9 +7,9 @@ from typing import Mapping
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
 from tm.validate.simulator import simulate
+
+yaml = import_yaml()
 
 
 def _expand(pattern: str) -> Path:

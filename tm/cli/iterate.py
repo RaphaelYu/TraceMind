@@ -9,11 +9,11 @@ from typing import Any, Mapping
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
 from tm.composer import ComposerError, compose_reference_workflow
 from tm.iteration.loop import run_iteration
 from tm.verifier import verify_reference_trace
+
+yaml = import_yaml()
 
 
 def register_iterate_commands(subparsers: _SubParsersAction) -> None:

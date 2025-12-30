@@ -1,0 +1,40 @@
+body:
+  artifact_refs: &id001
+    resource:inventory:update:
+      count: 1
+      status: applied
+  artifacts:
+    ActAgent:
+      artifact_refs: *id001
+    DecideAgent:
+      plan_id: intent.controller.mock:env-mock
+      summary: Mock decide plan
+    ObserveAgent:
+      data_hash: 470c1573330392561196d22aa236d29e7c041a93e5cd50de2bb879d2e527d59c
+      snapshot_id: env-mock
+  errors: []
+  execution_hash: 41ddf70186675e86c31d2433e33712679b9bb5a939937bc010ef99e3c02bc4ba
+  policy_decisions:
+  - allowed: true
+    effect_ref: resource:inventory:update
+    idempotency_key: intent.controller.mock:env-mock:resource:inventory:update
+    reason: allowlist
+  report_id: intent.controller.mock:env-mock
+  status: succeeded
+envelope:
+  artifact_id: tm-controller/execution_report-bundle
+  artifact_type: execution_report
+  body_hash: f14bf8bbcdbca89c105efeeac945079c6d5822ca2921c8ffddb68841ee388345
+  created_at: '2025-12-30T02:02:50.577203+00:00'
+  created_by: controller.cycle
+  envelope_hash: ''
+  meta:
+    bundle: tmp_debug/server_test/bundle.yaml
+    determinism: true
+    hashes:
+      body_hash: f14bf8bbcdbca89c105efeeac945079c6d5822ca2921c8ffddb68841ee388345
+    mode: live
+    phase: controller-cycle
+    produced_by: tracemind.verifier.v0
+  status: accepted
+  version: v0

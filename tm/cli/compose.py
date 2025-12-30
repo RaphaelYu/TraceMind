@@ -9,10 +9,10 @@ from typing import Any, Mapping, Sequence
 
 from tm.utils.yaml import import_yaml
 
-yaml = import_yaml()
-
 from tm.composer import ComposerError, WorkflowComposer, compose_reference_workflow
 from tm.verifier import verify_reference_trace
+
+yaml = import_yaml()
 
 
 def register_compose_commands(subparsers: argparse._SubParsersAction) -> None:
