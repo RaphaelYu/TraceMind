@@ -389,7 +389,7 @@ def _attach_controller_routes(router: APIRouter, config: ServerConfig, workspace
         errors: List[str] = []
         gap_map: Path | None = None
         backlog: Path | None = None
-        payload: Dict[str, Any]
+        payload: Dict[str, Any] = {}
         try:
             result = runner.run()
             payload = _build_success_payload(
