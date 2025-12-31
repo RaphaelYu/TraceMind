@@ -1,0 +1,2318 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TraceMind Controller Server API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/workspaces/init": {
+      "post": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Init Workspace Route",
+        "operationId": "init_workspace_route_api_v1_workspaces_init_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceInitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/mount": {
+      "post": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Mount Workspace",
+        "operationId": "mount_workspace_api_v1_workspaces_mount_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MountWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "List Workspaces",
+        "operationId": "list_workspaces_api_v1_workspaces_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceInfo"
+                  },
+                  "type": "array",
+                  "title": "Response List Workspaces Api V1 Workspaces Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/select": {
+      "post": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Select Workspace",
+        "operationId": "select_workspace_api_v1_workspaces_select_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/current": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Get Current Workspace",
+        "operationId": "get_current_workspace_api_v1_workspaces_current_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/WorkspaceInfo"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Current Workspace Api V1 Workspaces Current Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/prompt-templates": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "List Prompt Templates",
+        "operationId": "list_prompt_templates_api_v1_llm_prompt_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PromptTemplateInfo"
+                  },
+                  "type": "array",
+                  "title": "Response List Prompt Templates Api V1 Llm Prompt Templates Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/configs": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "List Configs",
+        "operationId": "list_configs_api_v1_llm_configs_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the config",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the config"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LlmConfigInfo"
+                  },
+                  "title": "Response List Configs Api V1 Llm Configs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Create Config",
+        "operationId": "create_config_api_v1_llm_configs_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the config",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the config"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LlmConfigCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmConfigInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "List Artifacts",
+        "operationId": "list_artifacts_api_v1_artifacts_get",
+        "parameters": [
+          {
+            "name": "artifact_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Type"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to scope artifacts",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to scope artifacts"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArtifactEntryResponse"
+                  },
+                  "title": "Response List Artifacts Api V1 Artifacts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Create Artifact",
+        "operationId": "create_artifact_api_v1_artifacts_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to persist the artifact",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to persist the artifact"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{artifact_id}": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Get Artifact",
+        "operationId": "get_artifact_api_v1_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to scope artifacts",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to scope artifacts"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Update Artifact",
+        "operationId": "update_artifact_api_v1_artifacts__artifact_id__put",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to persist the artifact",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to persist the artifact"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meta": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Meta",
+        "operationId": "meta_api_v1_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/bundles": {
+      "get": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "List Bundles",
+        "operationId": "list_bundles_api_controller_bundles_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to query",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Bundles Api Controller Bundles Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/artifacts": {
+      "get": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "List Artifacts",
+        "operationId": "list_artifacts_api_controller_artifacts_get",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "body_hash",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Body Hash"
+            }
+          },
+          {
+            "name": "artifact_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Type"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to query",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Artifacts Api Controller Artifacts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/artifacts/{artifact_id}": {
+      "get": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Get Artifact",
+        "operationId": "get_artifact_api_controller_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to read artifacts from",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to read artifacts from"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Artifact Api Controller Artifacts  Artifact Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/artifacts/diff": {
+      "post": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Diff Artifacts",
+        "operationId": "diff_artifacts_api_controller_artifacts_diff_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the artifacts",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the artifacts"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactDiffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Diff Artifacts Api Controller Artifacts Diff Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/reports": {
+      "get": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "List Reports",
+        "operationId": "list_reports_api_controller_reports_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace whose runs should be listed",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace whose runs should be listed"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Reports Api Controller Reports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/reports/{run_id}": {
+      "get": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Get Report",
+        "operationId": "get_report_api_controller_reports__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the report",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the report"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Report Api Controller Reports  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/controller/cycle": {
+      "post": {
+        "tags": [
+          "controller"
+        ],
+        "summary": "Run Cycle",
+        "operationId": "run_cycle_api_controller_cycle_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CycleRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/bundles": {
+      "get": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "List Bundles",
+        "operationId": "list_bundles_api_v1_controller_bundles_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to query",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Bundles Api V1 Controller Bundles Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/artifacts": {
+      "get": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "List Artifacts",
+        "operationId": "list_artifacts_api_v1_controller_artifacts_get",
+        "parameters": [
+          {
+            "name": "intent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Intent Id"
+            }
+          },
+          {
+            "name": "body_hash",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Body Hash"
+            }
+          },
+          {
+            "name": "artifact_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Artifact Type"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to query",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Artifacts Api V1 Controller Artifacts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/artifacts/{artifact_id}": {
+      "get": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "Get Artifact",
+        "operationId": "get_artifact_api_v1_controller_artifacts__artifact_id__get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace to read artifacts from",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace to read artifacts from"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Artifact Api V1 Controller Artifacts  Artifact Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/artifacts/diff": {
+      "post": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "Diff Artifacts",
+        "operationId": "diff_artifacts_api_v1_controller_artifacts_diff_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the artifacts",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the artifacts"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactDiffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Diff Artifacts Api V1 Controller Artifacts Diff Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/reports": {
+      "get": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "List Reports",
+        "operationId": "list_reports_api_v1_controller_reports_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace whose runs should be listed",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace whose runs should be listed"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Reports Api V1 Controller Reports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/reports/{run_id}": {
+      "get": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "Get Report",
+        "operationId": "get_report_api_v1_controller_reports__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the report",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the report"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Report Api V1 Controller Reports  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/cycle": {
+      "post": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "Run Cycle",
+        "operationId": "run_cycle_api_v1_controller_cycle_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CycleRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/controller/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "controller",
+          "controller.v1"
+        ],
+        "summary": "Runs Alias",
+        "operationId": "runs_alias_api_v1_controller_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Workspace that owns the report",
+              "title": "Workspace Id"
+            },
+            "description": "Workspace that owns the report"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Runs Alias Api V1 Controller Runs  Run Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ArtifactCreateRequest": {
+        "properties": {
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "body": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_type",
+          "body"
+        ],
+        "title": "ArtifactCreateRequest"
+      },
+      "ArtifactDetailResponse": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/ArtifactEntryResponse"
+          },
+          "document": {
+            "$ref": "#/components/schemas/ArtifactDocument"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry",
+          "document"
+        ],
+        "title": "ArtifactDetailResponse"
+      },
+      "ArtifactDiffRequest": {
+        "properties": {
+          "base_id": {
+            "type": "string",
+            "title": "Base Id"
+          },
+          "compare_id": {
+            "type": "string",
+            "title": "Compare Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_id",
+          "compare_id"
+        ],
+        "title": "ArtifactDiffRequest"
+      },
+      "ArtifactDocument": {
+        "properties": {
+          "envelope": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Envelope"
+          },
+          "body": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "envelope",
+          "body"
+        ],
+        "title": "ArtifactDocument"
+      },
+      "ArtifactEntryResponse": {
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "body_hash": {
+            "type": "string",
+            "title": "Body Hash"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Meta"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "intent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "artifact_type",
+          "body_hash",
+          "path",
+          "meta",
+          "version",
+          "schema_version",
+          "created_at",
+          "status"
+        ],
+        "title": "ArtifactEntryResponse"
+      },
+      "BuildInfoModel": {
+        "properties": {
+          "git_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Commit"
+          },
+          "build_time": {
+            "type": "string",
+            "title": "Build Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "git_commit",
+          "build_time"
+        ],
+        "title": "BuildInfoModel"
+      },
+      "CycleRunRequest": {
+        "properties": {
+          "bundle_artifact_id": {
+            "type": "string",
+            "title": "Bundle Artifact Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "live"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "approval_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Token"
+          },
+          "llm_config_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Config Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bundle_artifact_id"
+        ],
+        "title": "CycleRunRequest"
+      },
+      "CycleRunResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "report_path": {
+            "type": "string",
+            "title": "Report Path"
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "gap_map": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap Map"
+          },
+          "backlog": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backlog"
+          },
+          "report": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Report"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "llm_config_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Config Id"
+          },
+          "llm_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "report_path",
+          "success",
+          "errors",
+          "gap_map",
+          "backlog",
+          "report",
+          "workspace_id",
+          "llm_config_id",
+          "llm_config"
+        ],
+        "title": "CycleRunResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LlmConfigCreateRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "prompt_template_version": {
+            "type": "string",
+            "title": "Prompt Template Version"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "prompt_template_version"
+        ],
+        "title": "LlmConfigCreateRequest"
+      },
+      "LlmConfigInfo": {
+        "properties": {
+          "config_id": {
+            "type": "string",
+            "title": "Config Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "prompt_template_version": {
+            "type": "string",
+            "title": "Prompt Template Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "config_id",
+          "model",
+          "prompt_template_version",
+          "prompt_version",
+          "created_at"
+        ],
+        "title": "LlmConfigInfo"
+      },
+      "MetaResponse": {
+        "properties": {
+          "api_version": {
+            "type": "string",
+            "title": "Api Version"
+          },
+          "tm_core_version": {
+            "type": "string",
+            "title": "Tm Core Version"
+          },
+          "schemas_supported": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Schemas Supported"
+          },
+          "build": {
+            "$ref": "#/components/schemas/BuildInfoModel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_version",
+          "tm_core_version",
+          "schemas_supported",
+          "build"
+        ],
+        "title": "MetaResponse"
+      },
+      "MountWorkspaceRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "MountWorkspaceRequest"
+      },
+      "PromptTemplateInfo": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "title"
+        ],
+        "title": "PromptTemplateInfo"
+      },
+      "SelectWorkspaceRequest": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "SelectWorkspaceRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WorkspaceInfo": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "root": {
+            "type": "string",
+            "title": "Root"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "directories": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Directories"
+          },
+          "commit_policy": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Commit Policy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "name",
+          "root",
+          "languages",
+          "directories",
+          "commit_policy"
+        ],
+        "title": "WorkspaceInfo"
+      },
+      "WorkspaceInitRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "languages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Languages"
+          },
+          "directories": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Directories"
+          },
+          "commit_policy": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Policy"
+          },
+          "append_gitignore": {
+            "type": "boolean",
+            "title": "Append Gitignore",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "name"
+        ],
+        "title": "WorkspaceInitRequest"
+      },
+      "WorkspaceInitResponse": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "manifest_path": {
+            "type": "string",
+            "title": "Manifest Path"
+          },
+          "directories": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Directories"
+          },
+          "sample_controller_bundle": {
+            "type": "string",
+            "title": "Sample Controller Bundle"
+          },
+          "sample_intent": {
+            "type": "string",
+            "title": "Sample Intent"
+          },
+          "gitignore_snippet": {
+            "type": "string",
+            "title": "Gitignore Snippet"
+          },
+          "gitignore_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gitignore Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "name",
+          "manifest_path",
+          "directories",
+          "sample_controller_bundle",
+          "sample_intent",
+          "gitignore_snippet",
+          "gitignore_path"
+        ],
+        "title": "WorkspaceInitResponse"
+      }
+    }
+  }
+}

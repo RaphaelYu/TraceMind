@@ -78,7 +78,19 @@ class DecideLLMStubAgent(RuntimeAgent):
             raise RuntimeError(
                 "decide agent determinism_hint must be one of: " + ", ".join(sorted(self._DETERMINISM_HINTS))
             )
-        return {"model": model, "prompt_hash": prompt_hash, "determinism_hint": hint}
+        prompt_template_version = str(self.config.get("prompt_template_version", "v0"))
+        prompt_version = str(self.config.get("prompt_version", prompt_template_version))
+        config_id = self.config.get("llm_config_id")
+        metadata = {
+            "model": model,
+            "prompt_hash": prompt_hash,
+            "determinism_hint": hint,
+            "prompt_template_version": prompt_template_version,
+            "prompt_version": prompt_version,
+        }
+        if config_id is not None:
+            metadata["config_id"] = str(config_id)
+        return metadata
 
     def _resolve_policy_requirements(self, decisions: Iterable[Mapping[str, object]]) -> list[str]:
         raw = self.config.get("policy_requirements")

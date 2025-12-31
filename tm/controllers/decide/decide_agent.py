@@ -57,6 +57,8 @@ class DecideAgent(RuntimeAgent):
         determinism = str(self.config.get("determinism_hint", "replayable"))
         if determinism not in LlmMetadata.OPTIONS:
             raise RuntimeError("determinism_hint must be one of: " + ", ".join(sorted(LlmMetadata.OPTIONS)))
+        prompt_version = str(self.config.get("prompt_version") or template_version)
+        config_id = self.config.get("llm_config_id")
         llm_metadata: dict[str, Any] = {
             "model": str(self.config.get("model", "tm-llm/mock")),
             "prompt_hash": prompt_hash,
@@ -64,6 +66,8 @@ class DecideAgent(RuntimeAgent):
             "model_id": model_id,
             "model_version": model_version,
             "prompt_template_version": template_version,
+            "prompt_version": prompt_version,
+            "config_id": str(config_id) if config_id is not None else None,
             "inputs_hash": inputs_hash,
         }
         plan = {
@@ -98,9 +102,13 @@ class DecideAgent(RuntimeAgent):
 
     def _load_prompt_template(self) -> tuple[str, str]:
         base = Path(__file__).resolve().parent
-        template_path = base / "prompt_templates" / "v0.md"
+        requested_version = str(self.config.get("prompt_template_version") or "").strip()
+        template_name = f"{requested_version or 'v0'}.md"
+        template_path = base / "prompt_templates" / template_name
+        if not template_path.exists():
+            template_path = base / "prompt_templates" / "v0.md"
         content = template_path.read_text(encoding="utf-8").splitlines()
-        version = "v0"
+        version = template_path.stem
         body_lines: list[str] = []
         for line in content:
             stripped = line.strip()

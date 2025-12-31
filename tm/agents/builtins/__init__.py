@@ -6,6 +6,7 @@ from tm.agents.runtime import RuntimeAgent
 from tm.agents.builtins.http_mock import HttpMockAgent
 from tm.agents.builtins.noop import NoopAgent
 from tm.agents.builtins.shell import ShellAgent
+from tm.connectors.http_agent import HttpConnectorAgent
 
 __all__ = [
     "AgentRegistryError",
@@ -26,5 +27,5 @@ def _register_agent(agent_cls: type[RuntimeAgent]) -> None:
         pass
 
 
-for _agent_cls in (NoopAgent, ShellAgent, HttpMockAgent):
+for _agent_cls in (NoopAgent, ShellAgent, HttpMockAgent, HttpConnectorAgent):
     _register_agent(_agent_cls)

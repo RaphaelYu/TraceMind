@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
 from tm.artifacts.models import ArtifactType
@@ -19,10 +19,26 @@ from tm.controllers.cycle import (
     ControllerCycleResult,
     write_gap_and_backlog,
 )
+from tm.llm.config_registry import LlmConfigEntry, LlmConfigRegistry
 from tm.server.config import ServerConfig
+from tm.server.workspace_manager import WorkspaceManager
+from tm.runtime.reliability import RunReliabilityController, register_run
 from tm.utils.yaml import import_yaml
+from tm.workspace.manifest import Workspace
 
 yaml = import_yaml()
+
+
+def _resolve_workspace(workspace_manager: WorkspaceManager, workspace_id: str | None) -> Workspace:
+    try:
+        return workspace_manager.get(workspace_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+def _workspace_registry(workspace: Workspace) -> ArtifactRegistry:
+    workspace.paths.artifacts.mkdir(parents=True, exist_ok=True)
+    return ArtifactRegistry(RegistryStorage(workspace.paths.registry))
 
 
 class CycleRunRequest(BaseModel):
@@ -30,6 +46,9 @@ class CycleRunRequest(BaseModel):
     mode: str = "live"
     dry_run: bool = False
     run_id: str | None = None
+    workspace_id: str | None = None
+    approval_token: str | None = None
+    llm_config_id: str | None = None
 
 
 class CycleRunResponse(BaseModel):
@@ -40,6 +59,9 @@ class CycleRunResponse(BaseModel):
     gap_map: str | None
     backlog: str | None
     report: Dict[str, Any]
+    workspace_id: str | None
+    llm_config_id: str | None
+    llm_config: Dict[str, Any] | None
 
 
 class ArtifactDiffRequest(BaseModel):
@@ -139,6 +161,8 @@ def _build_success_payload(
     mode: str,
     dry_run: bool,
     artifact_dir: Path,
+    workspace_id: str | None,
+    llm_config: LlmConfigEntry | None,
 ) -> Dict[str, Any]:
     return {
         "run_id": run_id,
@@ -164,6 +188,9 @@ def _build_success_payload(
         ],
         "errors": [],
         "artifact_output_dir": str(artifact_dir),
+        "workspace_id": workspace_id,
+        "llm_config_id": llm_config.config_id if llm_config is not None else None,
+        "llm_config": llm_config.to_dict() if llm_config is not None else None,
     }
 
 
@@ -175,6 +202,8 @@ def _build_failure_payload(
     errors: Sequence[str],
     gap_map: Path | None,
     backlog: Path | None,
+    workspace_id: str | None,
+    llm_config: LlmConfigEntry | None,
 ) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "run_id": run_id,
@@ -187,27 +216,33 @@ def _build_failure_payload(
     }
     if gap_map is not None:
         payload["gap_map"] = str(gap_map)
-    if backlog is not None:
-        payload["backlog"] = str(backlog)
+        if backlog is not None:
+            payload["backlog"] = str(backlog)
+        if workspace_id is not None:
+            payload["workspace_id"] = workspace_id
+    payload["llm_config_id"] = llm_config.config_id if llm_config is not None else None
+    payload["llm_config"] = llm_config.to_dict() if llm_config is not None else None
     return payload
 
 
-def create_controller_router(config: ServerConfig) -> APIRouter:
-    storage = RegistryStorage(config.registry_path)
-    registry = ArtifactRegistry(storage)
-    router = APIRouter(prefix="/api/controller", tags=["controller"])
-
+def _attach_controller_routes(router: APIRouter, config: ServerConfig, workspace_manager: WorkspaceManager) -> None:
     @router.get("/bundles")
-    def list_bundles() -> List[Dict[str, Any]]:
+    def list_bundles(workspace_id: str | None = Query(None, description="Workspace to query")) -> List[Dict[str, Any]]:
+        workspace = _resolve_workspace(workspace_manager, workspace_id)
+        registry = _workspace_registry(workspace)
         entries = registry.list_by_type(ArtifactType.AGENT_BUNDLE)
         return [entry.to_dict() for entry in entries]
 
     @router.get("/artifacts")
     def list_artifacts(
+        *,
         intent_id: str | None = None,
         body_hash: str | None = None,
         artifact_type: str | None = None,
+        workspace_id: str | None = Query(None, description="Workspace to query"),
     ) -> List[Dict[str, Any]]:
+        workspace = _resolve_workspace(workspace_manager, workspace_id)
+        registry = _workspace_registry(workspace)
         entries = registry.list_all()
         if artifact_type:
             try:
@@ -224,8 +259,12 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
             entries = [entry for entry in entries if entry.body_hash == body_hash]
         return [entry.to_dict() for entry in entries]
 
-    @router.get("/artifacts/{artifact_id}")
-    def get_artifact(artifact_id: str) -> Dict[str, Any]:
+    @router.get("/artifacts/{artifact_id:path}")
+    def get_artifact(
+        artifact_id: str, workspace_id: str | None = Query(None, description="Workspace to read artifacts from")
+    ) -> Dict[str, Any]:
+        workspace = _resolve_workspace(workspace_manager, workspace_id)
+        registry = _workspace_registry(workspace)
         entry = registry.get_by_artifact_id(artifact_id)
         if entry is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="artifact not found")
@@ -236,7 +275,12 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
         return {"entry": entry.to_dict(), "document": document}
 
     @router.post("/artifacts/diff")
-    def diff_artifacts(payload: ArtifactDiffRequest) -> Dict[str, Any]:
+    def diff_artifacts(
+        payload: ArtifactDiffRequest,
+        workspace_id: str | None = Query(None, description="Workspace that owns the artifacts"),
+    ) -> Dict[str, Any]:
+        workspace = _resolve_workspace(workspace_manager, workspace_id)
+        registry = _workspace_registry(workspace)
         entry_a = registry.get_by_artifact_id(payload.base_id)
         entry_b = registry.get_by_artifact_id(payload.compare_id)
         if entry_a is None or entry_b is None:
@@ -260,9 +304,15 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
         }
 
     @router.get("/reports")
-    def list_reports() -> List[Dict[str, Any]]:
+    def list_reports(
+        workspace_id: str | None = Query(None, description="Workspace whose runs should be listed")
+    ) -> List[Dict[str, Any]]:
+        workspace = _resolve_workspace(workspace_manager, workspace_id)
+        runs_root = workspace.paths.reports / "runs"
         runs: List[Dict[str, Any]] = []
-        for run_dir in sorted(config.runs_dir_path.iterdir()):
+        if not runs_root.exists():
+            return runs
+        for run_dir in sorted(runs_root.iterdir()):
             if not run_dir.is_dir():
                 continue
             report_path = run_dir / "cycle_report.yaml"
@@ -284,17 +334,28 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
         return runs
 
     @router.get("/reports/{run_id}")
-    def get_report(run_id: str) -> Dict[str, Any]:
-        report_path = config.runs_dir_path / run_id / "cycle_report.yaml"
+    def get_report(
+        run_id: str, workspace_id: str | None = Query(None, description="Workspace that owns the report")
+    ) -> Dict[str, Any]:
+        workspace = _resolve_workspace(workspace_manager, workspace_id)
+        report_path = workspace.paths.reports / "runs" / run_id / "cycle_report.yaml"
         if not report_path.exists():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="report not found")
         return _load_document(report_path)
 
     @router.post("/cycle")
     def run_cycle(request: CycleRunRequest) -> CycleRunResponse:
+        workspace = _resolve_workspace(workspace_manager, request.workspace_id)
+        registry = _workspace_registry(workspace)
         entry = registry.get_by_artifact_id(request.bundle_artifact_id)
         if entry is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="bundle not registered")
+        llm_config_entry: LlmConfigEntry | None = None
+        if request.llm_config_id:
+            llm_registry = LlmConfigRegistry(workspace.paths.llm_configs)
+            llm_config_entry = llm_registry.get(request.llm_config_id)
+            if llm_config_entry is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="llm config not found")
         try:
             bundle_path = Path(entry.path)
             if not bundle_path.exists():
@@ -306,19 +367,24 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
         except FileNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
         run_id = _make_run_id(entry.artifact_id, request.run_id)
-        run_dir = config.runs_dir_path / run_id
-        artifact_dir = run_dir / "controller_artifacts"
+        run_dir = workspace.paths.reports / "runs" / run_id
+        artifact_dir = workspace.paths.artifacts / "controller_artifacts" / run_id
         report_path = run_dir / "cycle_report.yaml"
         run_dir.mkdir(parents=True, exist_ok=True)
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        run_control = RunReliabilityController(run_id=run_id, workspace_id=workspace.manifest.workspace_id)
+        register_run(run_id, run_control, workspace.manifest.workspace_id)
         runner = ControllerCycle(
             bundle_path=bundle_path,
             mode=request.mode,
             dry_run=request.dry_run,
             report_path=report_path,
-            record_path=config.record_path,
+            record_path=workspace.paths.artifacts / "controller_decide_records.json",
             artifact_output_dir=artifact_dir,
             registry=registry,
+            llm_config=llm_config_entry,
+            approval_token=request.approval_token,
+            run_reliability=run_control,
         )
         errors: List[str] = []
         gap_map: Path | None = None
@@ -326,19 +392,36 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
         payload: Dict[str, Any]
         try:
             result = runner.run()
-            payload = _build_success_payload(result, run_id, request.mode, request.dry_run, artifact_dir)
+            payload = _build_success_payload(
+                result,
+                run_id,
+                request.mode,
+                request.dry_run,
+                artifact_dir,
+                workspace.manifest.workspace_id,
+                llm_config_entry,
+            )
         except ControllerCycleError as exc:
             errors = exc.errors
             dependency_id = runner.bundle_artifact_id or entry.artifact_id
             gap_map, backlog = write_gap_and_backlog(report_path, dependency_id, errors)
             payload = _build_failure_payload(
-                entry.artifact_id, run_id, request.mode, request.dry_run, errors, gap_map, backlog
+                entry.artifact_id,
+                run_id,
+                request.mode,
+                request.dry_run,
+                errors,
+                gap_map,
+                backlog,
+                workspace.manifest.workspace_id,
+                llm_config_entry,
             )
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
         finally:
             _write_document(report_path, payload)
-        return CycleRunResponse(
+
+        cycle_response = CycleRunResponse(
             run_id=run_id,
             report_path=str(report_path),
             success=payload.get("success", False),
@@ -346,7 +429,11 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
             gap_map=str(gap_map) if gap_map else None,
             backlog=str(backlog) if backlog else None,
             report=payload,
+            workspace_id=workspace.manifest.workspace_id,
+            llm_config_id=payload.get("llm_config_id"),
+            llm_config=payload.get("llm_config"),
         )
+        return cycle_response
 
     router.list_bundles = list_bundles  # type: ignore[attr-defined]
     router.list_artifacts = list_artifacts  # type: ignore[attr-defined]
@@ -355,4 +442,22 @@ def create_controller_router(config: ServerConfig) -> APIRouter:
     router.list_reports = list_reports  # type: ignore[attr-defined]
     router.get_report = get_report  # type: ignore[attr-defined]
     router.run_cycle = run_cycle  # type: ignore[attr-defined]
+
+
+def create_controller_router(config: ServerConfig, workspace_manager: WorkspaceManager) -> APIRouter:
+    router = APIRouter(prefix="/api/controller", tags=["controller"])
+    _attach_controller_routes(router, config, workspace_manager)
+    return router
+
+
+def create_controller_v1_router(config: ServerConfig, workspace_manager: WorkspaceManager) -> APIRouter:
+    router = APIRouter(prefix="/api/v1/controller", tags=["controller", "controller.v1"])
+    _attach_controller_routes(router, config, workspace_manager)
+
+    def runs_alias(
+        run_id: str, workspace_id: str | None = Query(None, description="Workspace that owns the report")
+    ) -> Dict[str, Any]:
+        return getattr(router, "get_report")(run_id, workspace_id)
+
+    router.get("/runs/{run_id}")(runs_alias)
     return router

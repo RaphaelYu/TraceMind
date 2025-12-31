@@ -83,6 +83,7 @@ def _cmd_controller_cycle(args: argparse.Namespace) -> int:
         report_path=report_path,
         record_path=args.record_path,
         artifact_output_dir=report_path.parent / "controller_artifacts",
+        approval_token=args.approval_token,
     )
     gap_path: Path | None = None
     backlog_path: Path | None = None
@@ -135,5 +136,10 @@ def register_controller_commands(subparsers: argparse._SubParsersAction) -> None
         "--record-path",
         default=".tracemind/controller_decide_records.json",
         help="path to store recorded decide plans",
+    )
+    cycle_parser.add_argument(
+        "--approval-token",
+        default="approved",
+        help="token indicating the run was approved (used when resource effects exist)",
     )
     cycle_parser.set_defaults(func=_cmd_controller_cycle)

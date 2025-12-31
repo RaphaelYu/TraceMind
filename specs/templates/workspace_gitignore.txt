@@ -1,0 +1,6 @@
+# TraceMind workspace outputs (ignore unless you intentionally track them)
+.tracemind/
+reports/
+prompts/
+policies/
+controller_artifacts/

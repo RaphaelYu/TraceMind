@@ -1,0 +1,29 @@
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: #05060a;
+  color: #f5f7ff;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #05060a, #070b1c 60%, #0b1528);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}

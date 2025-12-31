@@ -102,6 +102,8 @@ class LlmMetadata:
     model_id: str | None = None
     model_version: str | None = None
     prompt_template_version: str | None = None
+    prompt_version: str | None = None
+    config_id: str | None = None
     inputs_hash: str | None = None
 
     OPTIONS = {"deterministic", "replayable", "heuristic"}
@@ -114,6 +116,8 @@ class LlmMetadata:
         model_id = data.get("model_id")
         model_version = data.get("model_version")
         prompt_template_version = data.get("prompt_template_version")
+        prompt_version = data.get("prompt_version")
+        config_id = data.get("config_id")
         inputs_hash = data.get("inputs_hash")
         return cls(
             model=_ensure_str(_require_field(data, "model"), "llm_metadata.model"),
@@ -128,6 +132,10 @@ class LlmMetadata:
                 if prompt_template_version is not None
                 else None
             ),
+            prompt_version=(
+                _ensure_str(prompt_version, "llm_metadata.prompt_version") if prompt_version is not None else None
+            ),
+            config_id=_ensure_str(config_id, "llm_metadata.config_id") if config_id is not None else None,
             inputs_hash=_ensure_str(inputs_hash, "llm_metadata.inputs_hash") if inputs_hash is not None else None,
         )
 

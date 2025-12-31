@@ -1,4 +1,4 @@
-"""Regression tests for the TM server controller helper logic."""
+"""Regression tests for the TraceMind TM server workspace and controller APIs."""
 
 from __future__ import annotations
 
@@ -6,14 +6,10 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import httpx
 from tm.artifacts import Artifact
 from tm.artifacts.registry import ArtifactRegistry, RegistryStorage
-from tm.server.config import ServerConfig
-from tm.server.routes_controller import (
-    ArtifactDiffRequest,
-    CycleRunRequest,
-    create_controller_router,
-)
+from tm.server.app import create_app
 from tm.utils.yaml import import_yaml
 
 from tests.test_controller_demo_bundle_v0 import _build_controller_bundle
@@ -30,58 +26,76 @@ def _artifact_document(artifact: Artifact) -> dict[str, object]:
     return {"envelope": envelope, "body": dict(artifact.body_raw)}
 
 
-def _write_bundle(path: Path, artifact: Artifact) -> None:
-    doc = _artifact_document(artifact)
+def _write_document(path: Path, document: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if yaml is not None:
         with path.open("w", encoding="utf-8") as handle:
-            yaml.safe_dump(doc, handle, sort_keys=True, allow_unicode=True)
+            yaml.safe_dump(document, handle, sort_keys=True, allow_unicode=True)
         return
-    path.write_text(json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(document, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _prepare_registry(tmp_path: Path) -> tuple[ServerConfig, ArtifactRegistry]:
-    config = ServerConfig(
-        base_dir=tmp_path / "server",
-        registry_path=tmp_path / "registry.jsonl",
-        record_path=tmp_path / "decide_records.json",
-    )
-    storage = RegistryStorage(config.registry_path)
-    return config, ArtifactRegistry(storage)
+def _register_controller_bundle(artifacts_root: Path) -> Artifact:
+    bundle = _build_controller_bundle(["state:env.snapshot", "artifact:proposed.plan", "resource:inventory:update"])
+    bundle_path = artifacts_root / "controller_bundle.yaml"
+    _write_document(bundle_path, _artifact_document(bundle))
+    storage = RegistryStorage(artifacts_root / "registry.jsonl")
+    ArtifactRegistry(storage).add(bundle, bundle_path)
+    return bundle
 
 
-def test_controller_server_cycle_flow(tmp_path: Path) -> None:
-    config, registry = _prepare_registry(tmp_path)
-    bundle = _build_controller_bundle(
-        [
-            "state:env.snapshot",
-            "artifact:proposed.plan",
-            "resource:inventory:update",
-        ]
-    )
-    bundle_path = (tmp_path / "bundle.yaml").resolve()
-    _write_bundle(bundle_path, bundle)
-    registry.add(bundle, bundle_path)
-    router = create_controller_router(config)
+def _workspace_manifest_path(workspace_root: Path) -> Path:
+    return workspace_root / "tracemind.workspace.yaml"
 
-    bundles = router.list_bundles()
-    assert any(entry["artifact_id"] == bundle.envelope.artifact_id for entry in bundles)
 
-    response = router.run_cycle(CycleRunRequest(bundle_artifact_id=bundle.envelope.artifact_id, mode="live"))
-    assert response.success
-    assert response.report["bundle_artifact_id"] == bundle.envelope.artifact_id
-    run_id = response.run_id
+async def test_tm_server_workspace_controller_flow(tmp_path: Path) -> None:
+    workspace_root = tmp_path / "workspace"
+    manifest_path = _workspace_manifest_path(workspace_root)
+    _write_document(manifest_path, {"workspace_id": "tm-workspace:///controller", "name": "controller-test"})
 
-    reports = router.list_reports()
-    assert run_id in {entry["run_id"] for entry in reports}
+    app = create_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        mount_response = await client.post("/api/v1/workspaces/mount", json={"path": str(workspace_root)})
+        mount_response.raise_for_status()
+        mounted = mount_response.json()
+        workspace_id = mounted["workspace_id"]
+        artifacts_dir = Path(mounted["directories"]["artifacts"])
+        specs_dir = Path(mounted["directories"]["specs"])
+        assert artifacts_dir == (workspace_root / ".tracemind").resolve()
+        assert specs_dir == (workspace_root / "specs").resolve()
 
-    detail = router.get_report(run_id)
-    assert detail["bundle_artifact_id"] == bundle.envelope.artifact_id
+        params = {"workspace_id": workspace_id}
+        bundle = _register_controller_bundle(artifacts_dir)
 
-    artifacts = router.list_artifacts(artifact_type="agent_bundle")
-    assert any(entry["artifact_id"] == bundle.envelope.artifact_id for entry in artifacts)
+        bundles = (await client.get("/api/controller/bundles", params=params)).json()
+        assert any(entry["artifact_id"] == bundle.envelope.artifact_id for entry in bundles)
 
-    diff = router.diff_artifacts(
-        ArtifactDiffRequest(base_id=bundle.envelope.artifact_id, compare_id=bundle.envelope.artifact_id)
-    )
-    assert diff["diff"] == []
+        artifacts = (await client.get("/api/controller/artifacts", params=params)).json()
+        assert any(entry["artifact_id"] == bundle.envelope.artifact_id for entry in artifacts)
+
+        detail = (await client.get(f"/api/controller/artifacts/{bundle.envelope.artifact_id}", params=params)).json()
+        print(f"result={detail} from /api/controller/artifacts/{bundle.envelope.artifact_id}")
+        assert detail["entry"]["artifact_id"] == bundle.envelope.artifact_id
+        assert detail["document"]["envelope"]["artifact_id"] == bundle.envelope.artifact_id
+
+        diff_payload = {"base_id": bundle.envelope.artifact_id, "compare_id": bundle.envelope.artifact_id}
+        diff = await client.post("/api/controller/artifacts/diff", params=params, json=diff_payload)
+        diff_data = diff.json()
+        assert diff_data["base_id"] == bundle.envelope.artifact_id
+        assert diff_data["diff"] == []
+
+        cycle_response = await client.post(
+            "/api/controller/cycle",
+            json={"bundle_artifact_id": bundle.envelope.artifact_id, "workspace_id": workspace_id, "dry_run": True},
+        )
+        cycle_data = cycle_response.json()
+        assert cycle_data["success"] is True
+        run_id = cycle_data["run_id"]
+        assert cycle_data["workspace_id"] == workspace_id
+
+        reports = (await client.get("/api/controller/reports", params=params)).json()
+        assert run_id in {entry["run_id"] for entry in reports}
+
+        detail_report = (await client.get(f"/api/controller/reports/{run_id}", params=params)).json()
+        assert detail_report["bundle_artifact_id"] == bundle.envelope.artifact_id

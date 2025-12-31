@@ -31,6 +31,8 @@
         "model_id": {"type": "string"},
         "model_version": {"type": "string"},
         "prompt_template_version": {"type": "string"},
+        "prompt_version": {"type": "string"},
+        "config_id": {"type": "string"},
         "inputs_hash": {"type": "string"}
       },
       "required": ["model", "prompt_hash", "determinism_hint"],
